@@ -90,7 +90,11 @@ publicRouter.get("/:slug/availability", async (req, res) => {
   });
 
   res.json({
-    days: [...availability.entries()].map(([date, slots]) => ({ date, freeCount: slots.length })),
+    days: [...availability.entries()].map(([date, day]) => ({
+      date,
+      freeCount: day.slots.length,
+      totalCount: day.totalCount,
+    })),
   });
 });
 
@@ -120,7 +124,7 @@ publicRouter.get("/:slug/day-slots", async (req, res) => {
     staffId: staffId || undefined,
   });
 
-  res.json({ slots: availability.get(date) ?? [] });
+  res.json({ slots: availability.get(date)?.slots ?? [] });
 });
 
 const bookSchema = z.object({

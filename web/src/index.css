@@ -804,19 +804,11 @@ input[type="checkbox"] {
 .cal-day-past {
   text-decoration: line-through;
 }
+/* Width and color are set inline per-day from the free/total slot ratio. */
 .cal-indicator {
-  width: 16px;
   height: 4px;
   border-radius: 4px;
-}
-.cal-level-low {
-  background: #e8834a;
-}
-.cal-level-mid {
-  background: var(--amber);
-}
-.cal-level-high {
-  background: var(--green);
+  transition: width 0.2s ease;
 }
 
 .slot-pills {

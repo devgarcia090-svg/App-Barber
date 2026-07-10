@@ -23,12 +23,18 @@ function monthBounds(d: Date): { from: string; to: string } {
   return { from: fmt(first), to: fmt(last) };
 }
 
-/** Availability level → CSS class. Mirrors Booksy's colored day indicators. */
-function levelClass(freeCount: number): string {
-  if (freeCount === 0) return "";
-  if (freeCount <= 3) return "cal-level-low";
-  if (freeCount <= 8) return "cal-level-mid";
-  return "cal-level-high";
+/** Indicator bar under each day: both width and color scale with the share
+ * of free slots — nearly-full days show a tiny red sliver, wide-open days a
+ * long green bar. */
+function availabilityBarStyle(freeCount: number, totalCount: number): React.CSSProperties {
+  const ratio = totalCount > 0 ? freeCount / totalCount : 0;
+  const width = Math.round(6 + ratio * 16); // 6px (casi lleno) → 22px (vacío)
+  let color: string;
+  if (ratio <= 0.25) color = "#e85d5d"; // rojo: quedan muy pocos huecos
+  else if (ratio <= 0.5) color = "#e8834a"; // naranja: menos de la mitad
+  else if (ratio <= 0.75) color = "#e8b341"; // ámbar
+  else color = "#3ecf8e"; // verde: día casi libre
+  return { width, backgroundColor: color };
 }
 
 export function PublicBookingPage() {
@@ -43,7 +49,7 @@ export function PublicBookingPage() {
   const [service, setService] = useState<Service | null>(null);
   const [staffId, setStaffId] = useState<string>("any");
   const [month, setMonth] = useState(() => new Date());
-  const [days, setDays] = useState<Map<string, number>>(new Map());
+  const [days, setDays] = useState<Map<string, { freeCount: number; totalCount: number }>>(new Map());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [slots, setSlots] = useState<{ startMinute: number; staffIds: string[] }[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
@@ -78,7 +84,7 @@ export function PublicBookingPage() {
         to,
         ...(staffId !== "any" ? { staffId } : {}),
       })
-      .then((r) => setDays(new Map(r.days.map((d) => [d.date, d.freeCount]))));
+      .then((r) => setDays(new Map(r.days.map((d) => [d.date, { freeCount: d.freeCount, totalCount: d.totalCount }]))));
   }, [slug, service, staffId, month, step]);
 
   useEffect(() => {
@@ -230,7 +236,8 @@ export function PublicBookingPage() {
             ))}
             {calendarCells.map((cell, i) => {
               if (!cell) return <span key={`blank-${i}`} />;
-              const freeCount = days.get(cell.dateStr) ?? 0;
+              const day = days.get(cell.dateStr);
+              const freeCount = day?.freeCount ?? 0;
               const isPast = cell.dateStr < today;
               const disabled = isPast || freeCount === 0;
               return (
@@ -239,9 +246,10 @@ export function PublicBookingPage() {
                   className={`cal-day ${selectedDate === cell.dateStr ? "selected" : ""} ${disabled ? "disabled" : ""}`}
                   disabled={disabled}
                   onClick={() => setSelectedDate(cell.dateStr)}
+                  title={day ? `${freeCount} de ${day.totalCount} huecos libres` : undefined}
                 >
                   <span className={isPast ? "cal-day-past" : ""}>{cell.day}</span>
-                  {!disabled && <span className={`cal-indicator ${levelClass(freeCount)}`} />}
+                  {!disabled && day && <span className="cal-indicator" style={availabilityBarStyle(freeCount, day.totalCount)} />}
                 </button>
               );
             })}

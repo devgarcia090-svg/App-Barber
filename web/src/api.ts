@@ -184,7 +184,7 @@ export const api = {
     }>(`/api/public/${slug}`),
   publicGetAvailability: (slug: string, params: { serviceId: string; from: string; to: string; staffId?: string }) => {
     const qs = new URLSearchParams(params as Record<string, string>).toString();
-    return request<{ days: { date: string; freeCount: number }[] }>(`/api/public/${slug}/availability?${qs}`);
+    return request<{ days: { date: string; freeCount: number; totalCount: number }[] }>(`/api/public/${slug}/availability?${qs}`);
   },
   publicGetDaySlots: (slug: string, params: { serviceId: string; date: string; staffId?: string }) => {
     const qs = new URLSearchParams(params as Record<string, string>).toString();

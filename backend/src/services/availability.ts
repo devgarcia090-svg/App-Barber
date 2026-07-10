@@ -8,6 +8,13 @@ export interface PublicSlot {
   staffIds: string[];
 }
 
+export interface DayAvailability {
+  slots: PublicSlot[];
+  /** How many distinct start times the day offers ignoring existing bookings.
+   * freeCount/totalCount gives the "how full is this day" ratio for the calendar. */
+  totalCount: number;
+}
+
 function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -23,7 +30,7 @@ export async function getAvailability(opts: {
   fromStr: string;
   toStr: string;
   staffId?: string;
-}): Promise<Map<string, PublicSlot[]>> {
+}): Promise<Map<string, DayAvailability>> {
   const { barberId, durationMinutes, fromStr, toStr, staffId } = opts;
 
   const staff = await prisma.staff.findMany({
@@ -54,12 +61,13 @@ export async function getAvailability(opts: {
   }
 
   const now = Date.now();
-  const result = new Map<string, PublicSlot[]>();
+  const result = new Map<string, DayAvailability>();
 
   for (let day = new Date(rangeStart); day <= rangeEnd; day.setDate(day.getDate() + 1)) {
     const dateStr = toDateStr(day);
     const dayOfWeek = day.getDay();
     const slotMap = new Map<number, string[]>();
+    const capacity = new Set<number>();
 
     for (const member of staff) {
       const shift = member.workingHours.find((w) => w.dayOfWeek === dayOfWeek);
@@ -73,6 +81,7 @@ export async function getAvailability(opts: {
         const endMs = startMs + durationMinutes * 60 * 1000;
 
         if (startMs < now) continue;
+        capacity.add(minute);
         if (busy.some((b) => startMs < b.end && endMs > b.start)) continue;
 
         const free = slotMap.get(minute) ?? [];
@@ -81,10 +90,10 @@ export async function getAvailability(opts: {
       }
     }
 
-    result.set(
-      dateStr,
-      [...slotMap.entries()].sort((a, b) => a[0] - b[0]).map(([startMinute, staffIds]) => ({ startMinute, staffIds }))
-    );
+    result.set(dateStr, {
+      slots: [...slotMap.entries()].sort((a, b) => a[0] - b[0]).map(([startMinute, staffIds]) => ({ startMinute, staffIds })),
+      totalCount: capacity.size,
+    });
   }
 
   return result;

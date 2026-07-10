@@ -1,0 +1,185 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// NOTE: SQLite has no native enum type, so the "enum-like" fields below are
+// plain Strings constrained by the TS union types in src/types.ts (and
+// validated with zod at the API boundary). Swapping DATABASE_URL to Postgres
+// later would let these become real Prisma enums if desired.
+
+model Barber {
+  id           String   @id @default(cuid())
+  businessName String
+  slug         String   @unique
+  ownerName    String
+  email        String   @unique
+  passwordHash String
+  phone        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  services             Service[]
+  clients              Client[]
+  appointments         Appointment[]
+  staff                Staff[]
+  notificationSettings NotificationSettings?
+}
+
+/// An individual barber working at the business. The admin (the Barber
+/// account above) manages one Staff row per barber, each with their own
+/// agenda and working-hours schedule.
+model Staff {
+  id       String @id @default(cuid())
+  barberId String
+  barber   Barber @relation(fields: [barberId], references: [id], onDelete: Cascade)
+
+  name   String
+  phone  String?
+  email  String?
+  /// Hex color used to tell agendas apart in the calendar UI, e.g. "#2563eb"
+  color  String  @default("#2563eb")
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workingHours StaffWorkingHours[]
+  appointments Appointment[]
+}
+
+/// One shift per day of week for a Staff member. A day with no row is
+/// treated as closed. dayOfWeek follows JS's Date#getDay(): 0=Sunday..6=Saturday.
+model StaffWorkingHours {
+  id      String @id @default(cuid())
+  staffId String
+  staff   Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  dayOfWeek   Int
+  /// Minutes since midnight, e.g. 9:00 = 540
+  startMinute Int
+  /// Minutes since midnight, e.g. 18:00 = 1080
+  endMinute   Int
+
+  @@unique([staffId, dayOfWeek])
+}
+
+model NotificationSettings {
+  id       String @id @default(cuid())
+  barberId String @unique
+  barber   Barber @relation(fields: [barberId], references: [id], onDelete: Cascade)
+
+  // Hours-before-appointment offsets to send client reminders, e.g. "24,2"
+  reminderHoursBefore String @default("24,2")
+
+  // A cancellation made with less notice than this (in hours) counts as a "late cancel"
+  lateCancelThresholdHours Int @default(4)
+
+  // (noShowCount + lateCancelCount) at/above this marks a client RISKY
+  riskyThreshold Int @default(2)
+  // at/above this (but below riskyThreshold) marks a client WATCH
+  watchThreshold Int @default(1)
+
+  emailEnabled    Boolean @default(true)
+  whatsappEnabled Boolean @default(true)
+  smsEnabled      Boolean @default(false)
+
+  // Warn the barber ahead of time about risky clients on the schedule.
+  // Comma-separated hours-before offsets, e.g. "24,1" warns a day ahead and
+  // again an hour before so the barber can personally reconfirm.
+  barberPrewarningEnabled     Boolean @default(true)
+  barberPrewarningHoursBefore String  @default("24,1")
+
+  updatedAt DateTime @updatedAt
+}
+
+model Service {
+  id              String   @id @default(cuid())
+  barberId        String
+  barber          Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  name            String
+  durationMinutes Int
+  priceCents      Int
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  appointments Appointment[]
+}
+
+model Client {
+  id       String @id @default(cuid())
+  barberId String
+  barber   Barber @relation(fields: [barberId], references: [id], onDelete: Cascade)
+
+  name  String
+  phone String
+  email String?
+
+  totalAppointments Int @default(0)
+  completedCount    Int @default(0)
+  noShowCount       Int @default(0)
+  lateCancelCount   Int @default(0)
+
+  /// RELIABLE | WATCH | RISKY
+  reliabilityStatus String @default("RELIABLE")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appointments Appointment[]
+
+  @@unique([barberId, phone])
+}
+
+model Appointment {
+  id        String  @id @default(cuid())
+  barberId  String
+  barber    Barber  @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  staffId   String
+  staff     Staff   @relation(fields: [staffId], references: [id])
+  clientId  String
+  client    Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id])
+
+  startTime DateTime
+  endTime   DateTime
+  /// PENDING | CONFIRMED | CANCELLED | NO_SHOW | COMPLETED
+  status    String   @default("PENDING")
+
+  cancelledAt       DateTime?
+  cancelNoticeHours Float?
+
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reminders Reminder[]
+
+  @@index([barberId, startTime])
+  @@index([staffId, startTime])
+}
+
+model Reminder {
+  id            String      @id @default(cuid())
+  appointmentId String
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  /// CLIENT_REMINDER | BARBER_PREWARNING
+  kind         String
+  /// EMAIL | WHATSAPP | SMS
+  channel      String
+  scheduledFor DateTime
+  /// PENDING | SENT | FAILED | CANCELLED
+  status       String    @default("PENDING")
+  sentAt       DateTime?
+  error        String?
+
+  createdAt DateTime @default(now())
+
+  @@index([status, scheduledFor])
+}

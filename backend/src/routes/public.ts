@@ -2,6 +2,9 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { createAppointment, OutsideWorkingHoursError, SlotUnavailableError } from "../services/appointments";
+import { getAvailability } from "../services/availability";
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export const publicRouter = Router();
 
@@ -53,6 +56,71 @@ publicRouter.get("/:slug/busy-slots", async (req, res) => {
     select: { startTime: true, endTime: true },
   });
   res.json({ busySlots: appointments });
+});
+
+/** Per-day free-slot counts for a date range — powers the month calendar. */
+publicRouter.get("/:slug/availability", async (req, res) => {
+  const barber = await prisma.barber.findUnique({ where: { slug: req.params.slug } });
+  if (!barber) {
+    res.status(404).json({ error: "Business not found" });
+    return;
+  }
+  const { serviceId, from, to, staffId } = req.query as Record<string, string | undefined>;
+  if (!serviceId || !from || !to || !DATE_RE.test(from) || !DATE_RE.test(to)) {
+    res.status(400).json({ error: "Query params 'serviceId', 'from' and 'to' (YYYY-MM-DD) are required" });
+    return;
+  }
+  const rangeDays = (new Date(`${to}T00:00:00`).getTime() - new Date(`${from}T00:00:00`).getTime()) / 86_400_000;
+  if (rangeDays < 0 || rangeDays > 62) {
+    res.status(400).json({ error: "Date range must be between 0 and 62 days" });
+    return;
+  }
+  const service = await prisma.service.findFirst({ where: { id: serviceId, barberId: barber.id, active: true } });
+  if (!service) {
+    res.status(404).json({ error: "Service not found" });
+    return;
+  }
+
+  const availability = await getAvailability({
+    barberId: barber.id,
+    durationMinutes: service.durationMinutes,
+    fromStr: from,
+    toStr: to,
+    staffId: staffId || undefined,
+  });
+
+  res.json({
+    days: [...availability.entries()].map(([date, slots]) => ({ date, freeCount: slots.length })),
+  });
+});
+
+/** Free slots (with which staff are free) for one day. */
+publicRouter.get("/:slug/day-slots", async (req, res) => {
+  const barber = await prisma.barber.findUnique({ where: { slug: req.params.slug } });
+  if (!barber) {
+    res.status(404).json({ error: "Business not found" });
+    return;
+  }
+  const { serviceId, date, staffId } = req.query as Record<string, string | undefined>;
+  if (!serviceId || !date || !DATE_RE.test(date)) {
+    res.status(400).json({ error: "Query params 'serviceId' and 'date' (YYYY-MM-DD) are required" });
+    return;
+  }
+  const service = await prisma.service.findFirst({ where: { id: serviceId, barberId: barber.id, active: true } });
+  if (!service) {
+    res.status(404).json({ error: "Service not found" });
+    return;
+  }
+
+  const availability = await getAvailability({
+    barberId: barber.id,
+    durationMinutes: service.durationMinutes,
+    fromStr: date,
+    toStr: date,
+    staffId: staffId || undefined,
+  });
+
+  res.json({ slots: availability.get(date) ?? [] });
 });
 
 const bookSchema = z.object({

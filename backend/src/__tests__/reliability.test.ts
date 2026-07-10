@@ -49,19 +49,19 @@ describe("isLateCancellation", () => {
 
 describe("buildPrewarning", () => {
   it("returns null for reliable clients", () => {
-    const client = { name: "Ana", noShowCount: 0, lateCancelCount: 0, reliabilityStatus: "RELIABLE" };
+    const client = { name: "Ana", noShowCount: 0, lateCancelCount: 0, reliabilityStatus: "RELIABLE" as const };
     expect(buildPrewarning(client)).toBeNull();
   });
 
   it("warns softly for WATCH clients", () => {
-    const client = { name: "Marta", noShowCount: 0, lateCancelCount: 1, reliabilityStatus: "WATCH" };
+    const client = { name: "Marta", noShowCount: 0, lateCancelCount: 1, reliabilityStatus: "WATCH" as const };
     const prewarning = buildPrewarning(client);
     expect(prewarning?.status).toBe("WATCH");
     expect(prewarning?.message).toContain("Marta");
   });
 
   it("escalates the message for RISKY clients", () => {
-    const client = { name: "Pedro", noShowCount: 2, lateCancelCount: 1, reliabilityStatus: "RISKY" };
+    const client = { name: "Pedro", noShowCount: 2, lateCancelCount: 1, reliabilityStatus: "RISKY" as const };
     const prewarning = buildPrewarning(client);
     expect(prewarning?.status).toBe("RISKY");
     expect(prewarning?.message).toMatch(/Atención/);

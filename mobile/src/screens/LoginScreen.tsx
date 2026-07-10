@@ -1,7 +1,19 @@
 import { useState } from "react";
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../context/AuthContext";
 import { ApiError } from "../api";
+import { colors, radius, shadow } from "../theme";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { AuthStackParamList } from "../navigation/RootNavigator";
 
@@ -16,7 +28,7 @@ export function LoginScreen({ navigation }: Props) {
   async function handleLogin() {
     setSubmitting(true);
     try {
-      await login(email, password);
+      await login(email.trim(), password);
     } catch (err) {
       Alert.alert("Error", err instanceof ApiError ? err.message : "No se pudo iniciar sesión");
     } finally {
@@ -26,40 +38,158 @@ export function LoginScreen({ navigation }: Props) {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <Text style={styles.title}>App Barber</Text>
-      <Text style={styles.subtitle}>Panel del negocio</Text>
+      <View style={styles.brand}>
+        <View style={styles.logoRing}>
+          <Ionicons name="cut" size={34} color={colors.gold} />
+        </View>
+        <Text style={styles.title}>OFICINA DEL{"\n"}BARBERO</Text>
+        <View style={styles.divider} />
+        <Text style={styles.subtitle}>Llano de Brujas · Murcia</Text>
+      </View>
 
-      <Text style={styles.label}>Email</Text>
-      <TextInput
-        style={styles.input}
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        placeholder="tu@negocio.com"
-      />
+      <View style={[styles.card, shadow.card]}>
+        <Text style={styles.label}>EMAIL</Text>
+        <View style={styles.inputWrap}>
+          <Ionicons name="mail-outline" size={18} color={colors.faint} />
+          <TextInput
+            style={styles.input}
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            placeholder="tu@negocio.com"
+            placeholderTextColor={colors.faint}
+          />
+        </View>
 
-      <Text style={styles.label}>Contraseña</Text>
-      <TextInput style={styles.input} value={password} onChangeText={setPassword} secureTextEntry placeholder="••••••••" />
+        <Text style={styles.label}>CONTRASEÑA</Text>
+        <View style={styles.inputWrap}>
+          <Ionicons name="lock-closed-outline" size={18} color={colors.faint} />
+          <TextInput
+            style={styles.input}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            placeholder="••••••••"
+            placeholderTextColor={colors.faint}
+          />
+        </View>
 
-      <Pressable style={styles.button} onPress={handleLogin} disabled={submitting}>
-        {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Entrar</Text>}
-      </Pressable>
+        <Pressable
+          style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+          onPress={handleLogin}
+          disabled={submitting}
+        >
+          {submitting ? <ActivityIndicator color="#1F1808" /> : <Text style={styles.buttonText}>ENTRAR</Text>}
+        </Pressable>
+      </View>
 
       <Pressable onPress={() => navigation.navigate("Register")}>
-        <Text style={styles.link}>¿No tienes cuenta? Regístrate</Text>
+        <Text style={styles.link}>
+          ¿No tienes cuenta? <Text style={styles.linkAccent}>Regístrate</Text>
+        </Text>
       </Pressable>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", padding: 24, backgroundColor: "#f7f7fb" },
-  title: { fontSize: 28, fontWeight: "700", textAlign: "center" },
-  subtitle: { fontSize: 14, color: "#6b6b78", textAlign: "center", marginBottom: 24 },
-  label: { fontSize: 13, fontWeight: "600", marginBottom: 4, marginTop: 12 },
-  input: { borderWidth: 1, borderColor: "#e3e3ea", borderRadius: 10, padding: 12, backgroundColor: "#fff" },
-  button: { backgroundColor: "#2563eb", borderRadius: 10, padding: 14, alignItems: "center", marginTop: 20 },
-  buttonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
-  link: { color: "#2563eb", textAlign: "center", marginTop: 16 },
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 24,
+    backgroundColor: colors.bg,
+  },
+  brand: {
+    alignItems: "center",
+    marginBottom: 32,
+  },
+  logoRing: {
+    width: 84,
+    height: 84,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: colors.goldBorder,
+    backgroundColor: colors.goldSoft,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 18,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: colors.text,
+    letterSpacing: 5,
+    textAlign: "center",
+    lineHeight: 34,
+  },
+  divider: {
+    width: 48,
+    height: 2,
+    backgroundColor: colors.gold,
+    marginVertical: 12,
+    borderRadius: 2,
+  },
+  subtitle: {
+    fontSize: 13,
+    color: colors.muted,
+    letterSpacing: 0.4,
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 22,
+    gap: 8,
+  },
+  label: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.muted,
+    letterSpacing: 1.2,
+    marginTop: 6,
+  },
+  inputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceElevated,
+    paddingHorizontal: 12,
+  },
+  input: {
+    flex: 1,
+    paddingVertical: 13,
+    color: colors.text,
+    fontSize: 15,
+  },
+  button: {
+    backgroundColor: colors.gold,
+    borderRadius: radius.sm,
+    padding: 15,
+    alignItems: "center",
+    marginTop: 16,
+  },
+  buttonPressed: {
+    backgroundColor: colors.goldDark,
+  },
+  buttonText: {
+    color: "#1F1808",
+    fontWeight: "800",
+    fontSize: 14,
+    letterSpacing: 2,
+  },
+  link: {
+    color: colors.muted,
+    textAlign: "center",
+    marginTop: 22,
+    fontSize: 13.5,
+  },
+  linkAccent: {
+    color: colors.gold,
+    fontWeight: "700",
+  },
 });

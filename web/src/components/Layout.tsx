@@ -7,7 +7,7 @@ export function Layout() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand">{barber?.businessName}</div>
+        <div className="brand">✂ {barber?.businessName?.toUpperCase()}</div>
         <nav>
           <NavLink to="/" end>
             Agenda

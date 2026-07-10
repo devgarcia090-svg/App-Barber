@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { api, ApiError, type Staff, type WorkingHourRow } from "../api";
+import { colors, radius } from "../theme";
 import { DAY_NAMES, minutesToTimeLabel } from "../utils";
 
 function timeToMinutes(time: string): number | null {
@@ -61,24 +62,29 @@ function WorkingHoursEditor({ staffMember }: { staffMember: Staff }) {
   }
 
   return (
-    <View style={{ gap: 8, marginTop: 8 }}>
+    <View style={{ gap: 10, marginTop: 12 }}>
       {schedule.map((day, i) => (
         <View key={i} style={styles.dayRow}>
           <View style={styles.dayToggle}>
-            <Switch value={day.open} onValueChange={(v) => updateDay(i, { open: v })} />
-            <Text style={styles.dayName}>{DAY_NAMES[i]}</Text>
+            <Switch
+              value={day.open}
+              onValueChange={(v) => updateDay(i, { open: v })}
+              trackColor={{ true: colors.goldDark, false: colors.border }}
+              thumbColor={day.open ? colors.gold : colors.muted}
+            />
+            <Text style={[styles.dayName, day.open && { color: colors.text }]}>{DAY_NAMES[i]}</Text>
           </View>
           {day.open && (
             <View style={styles.timeRow}>
-              <TextInput style={styles.timeInput} value={day.start} onChangeText={(t) => updateDay(i, { start: t })} placeholder="09:00" />
-              <Text>-</Text>
-              <TextInput style={styles.timeInput} value={day.end} onChangeText={(t) => updateDay(i, { end: t })} placeholder="20:00" />
+              <TextInput style={styles.timeInput} value={day.start} onChangeText={(t) => updateDay(i, { start: t })} placeholder="09:00" placeholderTextColor={colors.faint} />
+              <Text style={{ color: colors.muted }}>–</Text>
+              <TextInput style={styles.timeInput} value={day.end} onChangeText={(t) => updateDay(i, { end: t })} placeholder="20:00" placeholderTextColor={colors.faint} />
             </View>
           )}
         </View>
       ))}
-      <Pressable style={styles.saveBtn} onPress={save} disabled={saving}>
-        <Text style={styles.saveBtnText}>{saving ? "Guardando..." : "Guardar horario"}</Text>
+      <Pressable style={({ pressed }) => [styles.saveBtn, pressed && { backgroundColor: colors.goldDark }]} onPress={save} disabled={saving}>
+        <Text style={styles.saveBtnText}>{saving ? "GUARDANDO..." : "GUARDAR HORARIO"}</Text>
       </Pressable>
     </View>
   );
@@ -112,17 +118,16 @@ export function StaffScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding: 16, gap: 12 }}>
-      <Text style={styles.title}>Barberos</Text>
-      <Text style={styles.muted}>Cada barbero tiene su propia agenda y horario.</Text>
+    <ScrollView style={styles.container} contentContainerStyle={{ padding: 16, gap: 14 }}>
+      <Text style={styles.subtitle}>Cada barbero tiene su propia agenda. Su horario define qué huecos se pueden reservar.</Text>
 
       <View style={styles.form}>
-        <Text style={styles.label}>Nombre</Text>
-        <TextInput style={styles.input} value={name} onChangeText={setName} />
-        <Text style={styles.label}>Teléfono (opcional)</Text>
-        <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-        <Pressable style={styles.saveBtn} onPress={handleCreate}>
-          <Text style={styles.saveBtnText}>+ Añadir barbero</Text>
+        <Text style={styles.label}>NOMBRE</Text>
+        <TextInput style={styles.input} value={name} onChangeText={setName} placeholderTextColor={colors.faint} />
+        <Text style={styles.label}>TELÉFONO (OPCIONAL)</Text>
+        <TextInput style={styles.input} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholderTextColor={colors.faint} />
+        <Pressable style={({ pressed }) => [styles.saveBtn, pressed && { backgroundColor: colors.goldDark }]} onPress={handleCreate}>
+          <Text style={styles.saveBtnText}>+ AÑADIR BARBERO</Text>
         </Pressable>
       </View>
 
@@ -131,7 +136,7 @@ export function StaffScreen() {
           <View style={styles.staffHeader}>
             <View style={[styles.dot, { backgroundColor: s.color }]} />
             <Text style={styles.staffName}>{s.name}</Text>
-            {!s.active && <Text style={styles.muted}>(inactivo)</Text>}
+            {!s.active && <Text style={styles.inactive}>INACTIVO</Text>}
           </View>
           <View style={styles.staffActions}>
             <Pressable style={styles.linkBtn} onPress={() => toggleActive(s)}>
@@ -149,24 +154,60 @@ export function StaffScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f7f7fb" },
-  title: { fontSize: 24, fontWeight: "700" },
-  muted: { color: "#6b6b78", fontSize: 12 },
-  label: { fontWeight: "600", fontSize: 13, marginTop: 8 },
-  input: { borderWidth: 1, borderColor: "#e3e3ea", borderRadius: 10, padding: 10, backgroundColor: "#fff" },
-  form: { backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: "#e3e3ea", padding: 12, gap: 4 },
-  saveBtn: { backgroundColor: "#2563eb", borderRadius: 10, padding: 12, alignItems: "center", marginTop: 10 },
-  saveBtnText: { color: "#fff", fontWeight: "700" },
-  staffCard: { backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: "#e3e3ea", padding: 12 },
-  staffHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
-  staffName: { fontWeight: "700", fontSize: 15 },
-  dot: { width: 10, height: 10, borderRadius: 999 },
-  staffActions: { flexDirection: "row", gap: 8, marginTop: 8 },
-  linkBtn: { borderWidth: 1, borderColor: "#e3e3ea", borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
-  linkBtnText: { fontSize: 12, color: "#2563eb", fontWeight: "600" },
-  dayRow: { gap: 4 },
-  dayToggle: { flexDirection: "row", alignItems: "center", gap: 8 },
-  dayName: { fontSize: 13 },
-  timeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginLeft: 52 },
-  timeInput: { borderWidth: 1, borderColor: "#e3e3ea", borderRadius: 8, padding: 8, width: 70, backgroundColor: "#fff" },
+  container: { flex: 1, backgroundColor: colors.bg },
+  subtitle: { color: colors.muted, fontSize: 13, lineHeight: 18 },
+  label: { fontWeight: "700", fontSize: 11, color: colors.muted, letterSpacing: 1.1, marginTop: 4 },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    padding: 12,
+    backgroundColor: colors.surfaceElevated,
+    color: colors.text,
+  },
+  form: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+    gap: 8,
+  },
+  saveBtn: { backgroundColor: colors.gold, borderRadius: radius.sm, padding: 13, alignItems: "center", marginTop: 10 },
+  saveBtnText: { color: "#1F1808", fontWeight: "800", fontSize: 12.5, letterSpacing: 1.5 },
+  staffCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 15,
+  },
+  staffHeader: { flexDirection: "row", alignItems: "center", gap: 9 },
+  staffName: { fontWeight: "700", fontSize: 16, color: colors.text },
+  inactive: { color: colors.faint, fontSize: 10, letterSpacing: 1 },
+  dot: { width: 10, height: 10, borderRadius: radius.pill },
+  staffActions: { flexDirection: "row", gap: 8, marginTop: 12 },
+  linkBtn: {
+    borderWidth: 1,
+    borderColor: colors.goldBorder,
+    backgroundColor: colors.goldSoft,
+    borderRadius: radius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  linkBtnText: { fontSize: 12.5, color: colors.gold, fontWeight: "700" },
+  dayRow: { gap: 6 },
+  dayToggle: { flexDirection: "row", alignItems: "center", gap: 10 },
+  dayName: { fontSize: 14, color: colors.muted },
+  timeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginLeft: 56 },
+  timeInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    padding: 9,
+    width: 72,
+    backgroundColor: colors.surfaceElevated,
+    color: colors.text,
+    textAlign: "center",
+  },
 });

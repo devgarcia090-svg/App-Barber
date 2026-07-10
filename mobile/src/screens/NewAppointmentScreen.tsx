@@ -12,9 +12,11 @@ import {
   View,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@expo/vector-icons";
 import { api, ApiError, type Client, type Service, type Staff } from "../api";
 import { DateStrip } from "../components/DateStrip";
 import { PrewarningBanner } from "../components/PrewarningBanner";
+import { colors, radius } from "../theme";
 import { formatMoney, generateDaySlots, todayStr, type Slot } from "../utils";
 
 function normalizePhone(phone: string): string {
@@ -127,11 +129,11 @@ export function NewAppointmentScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 8, gap: 12 }}>
         <Text style={styles.title}>Nueva cita</Text>
-        <Text style={styles.muted}>Ideal para reservar por teléfono: elige un hueco libre y solo hace falta el nombre y el número.</Text>
+        <Text style={styles.subtitle}>Elige un hueco libre — solo hace falta el nombre y el número del cliente.</Text>
 
-        <Text style={styles.label}>Barbero</Text>
+        <Text style={styles.label}>BARBERO</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {staff.map((s) => (
             <Pressable key={s.id} style={[styles.chip, staffId === s.id && styles.chipActive]} onPress={() => setStaffId(s.id)}>
@@ -141,7 +143,7 @@ export function NewAppointmentScreen() {
           ))}
         </ScrollView>
 
-        <Text style={styles.label}>Servicio</Text>
+        <Text style={styles.label}>SERVICIO</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {services.map((s) => (
             <Pressable key={s.id} style={[styles.chip, serviceId === s.id && styles.chipActive]} onPress={() => setServiceId(s.id)}>
@@ -152,63 +154,89 @@ export function NewAppointmentScreen() {
           ))}
         </ScrollView>
 
-        <Text style={styles.label}>Fecha</Text>
+        <Text style={styles.label}>FECHA</Text>
         <DateStrip selected={date} onSelect={setDate} />
 
-        <Text style={styles.label}>Huecos disponibles</Text>
-        {loadingSlots && <ActivityIndicator />}
-        {!loadingSlots && slots.length === 0 && <Text style={styles.muted}>Ese barbero no trabaja ese día.</Text>}
+        <Text style={styles.label}>HUECOS DISPONIBLES</Text>
+        {loadingSlots && <ActivityIndicator color={colors.gold} />}
+        {!loadingSlots && slots.length === 0 && <Text style={styles.subtitle}>Ese barbero no trabaja ese día.</Text>}
         <View style={styles.slotGrid}>
-          {slots.map((slot) => (
-            <Pressable
-              key={slot.startMinute}
-              disabled={!slot.available}
-              onPress={() => setSelectedSlot(slot.startMinute)}
-              style={[
-                styles.slot,
-                slot.available ? styles.slotAvailable : styles.slotBusy,
-                selectedSlot === slot.startMinute && styles.slotSelected,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.slotText,
-                  slot.available ? styles.slotTextAvailable : styles.slotTextBusy,
-                  selectedSlot === slot.startMinute && styles.slotTextSelected,
-                ]}
+          {slots.map((slot) => {
+            const isSelected = selectedSlot === slot.startMinute;
+            return (
+              <Pressable
+                key={slot.startMinute}
+                disabled={!slot.available}
+                onPress={() => setSelectedSlot(slot.startMinute)}
+                style={[styles.slot, slot.available ? styles.slotAvailable : styles.slotBusy, isSelected && styles.slotSelected]}
               >
-                {slot.label}
-              </Text>
-            </Pressable>
-          ))}
+                <Text
+                  style={[
+                    styles.slotText,
+                    slot.available ? styles.slotTextAvailable : styles.slotTextBusy,
+                    isSelected && styles.slotTextSelected,
+                  ]}
+                >
+                  {slot.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
-        <Text style={styles.label}>Teléfono del cliente</Text>
-        <TextInput style={styles.input} value={clientPhone} onChangeText={setClientPhone} keyboardType="phone-pad" placeholder="+34 600 000 000" />
+        <Text style={styles.label}>TELÉFONO DEL CLIENTE</Text>
+        <TextInput
+          style={styles.input}
+          value={clientPhone}
+          onChangeText={setClientPhone}
+          keyboardType="phone-pad"
+          placeholder="+34 600 000 000"
+          placeholderTextColor={colors.faint}
+        />
 
-        <Text style={styles.label}>Nombre del cliente</Text>
-        <TextInput style={styles.input} value={clientName} onChangeText={setClientName} />
+        <Text style={styles.label}>NOMBRE DEL CLIENTE</Text>
+        <TextInput style={styles.input} value={clientName} onChangeText={setClientName} placeholderTextColor={colors.faint} />
 
-        <Text style={styles.label}>Email del cliente (opcional)</Text>
-        <TextInput style={styles.input} value={clientEmail} onChangeText={setClientEmail} autoCapitalize="none" keyboardType="email-address" />
+        <Text style={styles.label}>EMAIL (OPCIONAL)</Text>
+        <TextInput
+          style={styles.input}
+          value={clientEmail}
+          onChangeText={setClientEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          placeholderTextColor={colors.faint}
+        />
 
         {matchedClient && (
           <View style={styles.notice}>
-            <Text>
-              Cliente existente: <Text style={{ fontWeight: "700" }}>{matchedClient.name}</Text>
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Ionicons name="person-circle-outline" size={18} color={colors.blue} />
+              <Text style={{ color: colors.text, fontSize: 13.5 }}>
+                Cliente existente: <Text style={{ fontWeight: "800" }}>{matchedClient.name}</Text>
+              </Text>
+            </View>
             <PrewarningBanner prewarning={matchedClient.prewarning} />
           </View>
         )}
 
-        <Text style={styles.label}>Notas (opcional)</Text>
-        <TextInput style={[styles.input, { height: 70 }]} value={notes} onChangeText={setNotes} multiline />
+        <Text style={styles.label}>NOTAS (OPCIONAL)</Text>
+        <TextInput
+          style={[styles.input, { height: 70, textAlignVertical: "top" }]}
+          value={notes}
+          onChangeText={setNotes}
+          multiline
+          placeholderTextColor={colors.faint}
+        />
 
-        <Pressable style={styles.button} onPress={handleSubmit} disabled={submitting}>
+        <Pressable
+          style={({ pressed }) => [styles.button, (submitting || selectedSlot === null) && { opacity: 0.5 }, pressed && { backgroundColor: colors.goldDark }]}
+          onPress={handleSubmit}
+          disabled={submitting || selectedSlot === null}
+        >
           {submitting ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color="#1F1808" />
           ) : (
-            <Text style={styles.buttonText}>{selectedSlot === null ? "Elige un hueco" : "Crear cita"}</Text>
+            <Text style={styles.buttonText}>{selectedSlot === null ? "ELIGE UN HUECO" : "CREAR CITA"}</Text>
           )}
         </Pressable>
       </ScrollView>
@@ -217,36 +245,69 @@ export function NewAppointmentScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f7f7fb" },
-  title: { fontSize: 24, fontWeight: "700" },
-  muted: { color: "#6b6b78", fontSize: 13 },
-  label: { fontWeight: "600", fontSize: 13, marginTop: 8 },
-  input: { borderWidth: 1, borderColor: "#e3e3ea", borderRadius: 10, padding: 12, backgroundColor: "#fff" },
+  container: { flex: 1, backgroundColor: colors.bg },
+  title: { fontSize: 26, fontWeight: "800", color: colors.text },
+  subtitle: { color: colors.muted, fontSize: 13, lineHeight: 18 },
+  label: {
+    fontWeight: "700",
+    fontSize: 11,
+    marginTop: 10,
+    color: colors.muted,
+    letterSpacing: 1.2,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.sm,
+    padding: 13,
+    backgroundColor: colors.surface,
+    color: colors.text,
+    fontSize: 15,
+  },
   chip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     borderWidth: 1,
-    borderColor: "#e3e3ea",
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: "#fff",
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    backgroundColor: colors.surface,
   },
-  chipActive: { borderColor: "#2563eb" },
-  chipText: { fontSize: 13, color: "#1c1c26" },
-  chipTextActive: { color: "#2563eb", fontWeight: "700" },
-  dot: { width: 8, height: 8, borderRadius: 999 },
+  chipActive: { borderColor: colors.gold, backgroundColor: colors.goldSoft },
+  chipText: { fontSize: 13, color: colors.muted, fontWeight: "600" },
+  chipTextActive: { color: colors.gold },
+  dot: { width: 8, height: 8, borderRadius: radius.pill },
   slotGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  slot: { width: 72, paddingVertical: 10, borderRadius: 8, borderWidth: 1, alignItems: "center" },
-  slotAvailable: { borderColor: "#93c5fd", backgroundColor: "#fff" },
-  slotBusy: { borderColor: "#e3e3ea", backgroundColor: "#f1f1f4" },
-  slotSelected: { backgroundColor: "#2563eb", borderColor: "#2563eb" },
-  slotText: { fontSize: 13, fontWeight: "600" },
-  slotTextAvailable: { color: "#2563eb" },
-  slotTextBusy: { color: "#6b6b78", textDecorationLine: "line-through" },
-  slotTextSelected: { color: "#fff" },
-  notice: { backgroundColor: "#eff6ff", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "#bfdbfe" },
-  button: { backgroundColor: "#2563eb", borderRadius: 10, padding: 14, alignItems: "center", marginTop: 12 },
-  buttonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  slot: {
+    width: 74,
+    paddingVertical: 11,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  slotAvailable: { borderColor: colors.goldBorder, backgroundColor: colors.surface },
+  slotBusy: { borderColor: colors.border, backgroundColor: "#111117" },
+  slotSelected: { backgroundColor: colors.gold, borderColor: colors.gold },
+  slotText: { fontSize: 13.5, fontWeight: "700", letterSpacing: 0.3 },
+  slotTextAvailable: { color: colors.gold },
+  slotTextBusy: { color: colors.faint, textDecorationLine: "line-through" },
+  slotTextSelected: { color: "#1F1808" },
+  notice: {
+    backgroundColor: colors.blueSoft,
+    borderRadius: radius.sm,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.blue + "44",
+    marginTop: 8,
+  },
+  button: {
+    backgroundColor: colors.gold,
+    borderRadius: radius.sm,
+    padding: 16,
+    alignItems: "center",
+    marginTop: 14,
+  },
+  buttonText: { color: "#1F1808", fontWeight: "800", fontSize: 14, letterSpacing: 2 },
 });

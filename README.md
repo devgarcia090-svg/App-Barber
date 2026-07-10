@@ -34,9 +34,20 @@ teléfono) es quien crea las citas, poniendo solo el nombre y el teléfono de qu
 
 ## Backend
 
+La base de datos vive en **Supabase** (PostgreSQL gestionado, con plan gratuito). Primero crea el
+proyecto:
+
+1. Entra en https://supabase.com y crea un proyecto (elige región Europa y apunta la contraseña de la
+   base de datos).
+2. En el panel de Supabase: **Project Settings → Database → Connection string**. Copia dos URIs:
+   - la del **Transaction pooler** (puerto 6543) → va en `DATABASE_URL`, añadiéndole `?pgbouncer=true`
+   - la de **Direct connection** (puerto 5432) → va en `DIRECT_URL`
+
+Después:
+
 ```
 cd backend
-cp .env.example .env
+cp .env.example .env     # pega ahí tus dos URIs de Supabase (sustituye [PASSWORD])
 npm install
 npx prisma migrate deploy
 npx tsx prisma/seed.ts   # datos de ejemplo (negocio, barberos, servicios, clientes)
@@ -47,15 +58,15 @@ Datos de ejemplo tras el seed: login `carlos@barberia-demo.com` / `password123`.
 
 Variables de entorno relevantes (ver `backend/.env.example`):
 
-- `DATABASE_URL`: SQLite por defecto para desarrollo; cambia el `provider`/`url` en `prisma/schema.prisma`
-  a Postgres para producción.
+- `DATABASE_URL` / `DIRECT_URL`: las dos cadenas de conexión de tu proyecto Supabase (pooler y directa).
 - `JWT_SECRET`: usado para firmar los tokens de acceso del panel.
 - `SMTP_*`: si no se configuran, los emails se escriben por consola en vez de enviarse de verdad (útil
   para probar el flujo sin contratar nada).
 - `TWILIO_*`: igual que el email, sin credenciales se loggean por consola en vez de enviarse WhatsApp/SMS.
 - `REMINDER_CRON`: cada cuánto se comprueba si hay recordatorios pendientes de enviar.
 
-Tests: `npm test` (motor de fiabilidad + citas, con SQLite de test independiente).
+Tests: `npm test`. Los tests unitarios corren siempre; los de integración con base de datos solo si
+defines `TEST_DATABASE_URL` apuntando a un Postgres desechable (¡nunca al de producción, borran todo!).
 
 ## Panel web
 
@@ -87,6 +98,24 @@ Para probarla en tu móvil con **Expo Go**:
 > no ha sido posible dejar un enlace/QR ya funcionando desde aquí (los túneles de Expo/ngrok y
 > localtunnel no consiguieron establecer conexión desde este sandbox). Para probarlo en Expo Go hace
 > falta ejecutarlo en tu propio ordenador siguiendo los pasos de arriba.
+
+## Publicación en App Store / Play Store (checklist)
+
+Requisitos que ya cumple la app y los que quedan pendientes antes de enviarla a revisión:
+
+- ✅ **Eliminación de cuenta dentro de la app** (exigido por Apple, guideline 5.1.1): en la pestaña
+  "Más" → "Eliminar cuenta" (pide la contraseña y borra el negocio completo en cascada). También
+  disponible en el panel web (Ajustes).
+- ✅ Identificadores de app configurados (`com.oficinadelbarbero.app` en iOS y Android).
+- ⬜ **Política de privacidad**: ambas tiendas exigen una URL pública con la política de privacidad
+  (qué datos se guardan —nombres y teléfonos de clientes, citas—, con qué fin, y cómo ejercer los
+  derechos RGPD). Hay que redactarla y alojarla (vale una página estática).
+- ⬜ **Formulario de privacidad de las tiendas**: declarar en App Store Connect ("App Privacy") y en
+  Play Console ("Data safety") que la app recoge datos de contacto de clientes.
+- ⬜ **Builds de producción**: generar con EAS Build (`npx eas build`) — requiere cuenta de Apple
+  Developer (99 €/año) y de Google Play Developer (25 € una vez).
+- ⬜ **Backend en producción**: la API debe estar desplegada en una URL pública HTTPS (Railway,
+  Render, Fly.io...) apuntando a Supabase; Apple rechaza apps que dependan de un servidor local.
 
 ## Modelo de datos (resumen)
 

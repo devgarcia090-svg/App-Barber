@@ -125,6 +125,9 @@ export const api = {
   register: (data: { businessName: string; ownerName: string; email: string; password: string; phone?: string }) =>
     request<{ token: string; barber: Barber }>("/api/auth/register", { method: "POST", body: JSON.stringify(data) }),
 
+  deleteAccount: (password: string) =>
+    request<void>("/api/auth/account", { method: "DELETE", body: JSON.stringify({ password }) }),
+
   getServices: () => request<{ services: Service[] }>("/api/services"),
   createService: (data: { name: string; durationMinutes: number; priceCents: number }) =>
     request<{ service: Service }>("/api/services", { method: "POST", body: JSON.stringify(data) }),
@@ -171,4 +174,32 @@ export const api = {
   getSettings: () => request<{ settings: NotificationSettings }>("/api/settings"),
   updateSettings: (data: Partial<NotificationSettings>) =>
     request<{ settings: NotificationSettings }>("/api/settings", { method: "PATCH", body: JSON.stringify(data) }),
+
+  // ---- Public booking (no auth) ----
+  publicGetBusiness: (slug: string) =>
+    request<{
+      barber: { businessName: string; slug: string; phone: string | null };
+      services: Service[];
+      staff: { id: string; name: string; color: string }[];
+    }>(`/api/public/${slug}`),
+  publicGetAvailability: (slug: string, params: { serviceId: string; from: string; to: string; staffId?: string }) => {
+    const qs = new URLSearchParams(params as Record<string, string>).toString();
+    return request<{ days: { date: string; freeCount: number }[] }>(`/api/public/${slug}/availability?${qs}`);
+  },
+  publicGetDaySlots: (slug: string, params: { serviceId: string; date: string; staffId?: string }) => {
+    const qs = new URLSearchParams(params as Record<string, string>).toString();
+    return request<{ slots: { startMinute: number; staffIds: string[] }[] }>(`/api/public/${slug}/day-slots?${qs}`);
+  },
+  publicBook: (
+    slug: string,
+    data: {
+      staffId: string;
+      serviceId: string;
+      startTime: string;
+      clientName: string;
+      clientPhone: string;
+      clientEmail?: string;
+      notes?: string;
+    }
+  ) => request<{ appointment: Appointment }>(`/api/public/${slug}/book`, { method: "POST", body: JSON.stringify(data) }),
 };

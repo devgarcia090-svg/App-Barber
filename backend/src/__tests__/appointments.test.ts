@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { prisma } from "../lib/prisma";
+import { hasTestDb } from "./setup";
 import {
   createAppointment,
   OutsideWorkingHoursError,
   setAppointmentStatus,
   SlotUnavailableError,
 } from "../services/appointments";
+
+// These tests need a disposable Postgres database (TEST_DATABASE_URL).
+const describeDb = describe.skipIf(!hasTestDb);
 
 const ALL_DAY_EVERY_DAY = [0, 1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
   dayOfWeek,
@@ -36,7 +40,7 @@ async function makeBarberWithClientAndService(schedule = ALL_DAY_EVERY_DAY) {
   return { barber, service, client, staff };
 }
 
-describe("createAppointment", () => {
+describeDb("createAppointment", () => {
   it("creates an appointment and schedules client reminders", async () => {
     const { barber, staff, service, client } = await makeBarberWithClientAndService();
     const startTime = new Date(Date.now() + 48 * 60 * 60 * 1000);
@@ -158,7 +162,7 @@ describe("createAppointment", () => {
   });
 });
 
-describe("setAppointmentStatus", () => {
+describeDb("setAppointmentStatus", () => {
   it("increments lateCancelCount and flips reliability to WATCH on a late cancellation", async () => {
     const { barber, staff, service, client } = await makeBarberWithClientAndService();
     const startTime = new Date(Date.now() + 3 * 60 * 60 * 1000); // 3h from now

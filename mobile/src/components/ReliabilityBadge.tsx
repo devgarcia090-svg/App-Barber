@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 import type { ReliabilityStatus } from "../api";
+import { colors, radius } from "../theme";
 
 const LABELS: Record<ReliabilityStatus, string> = {
   RELIABLE: "Fiable",
@@ -7,30 +8,41 @@ const LABELS: Record<ReliabilityStatus, string> = {
   RISKY: "Riesgo",
 };
 
-const COLORS: Record<ReliabilityStatus, { bg: string; fg: string }> = {
-  RELIABLE: { bg: "#dcfce7", fg: "#15803d" },
-  WATCH: { bg: "#fef3c7", fg: "#b45309" },
-  RISKY: { bg: "#fee2e2", fg: "#b91c1c" },
+const STYLES: Record<ReliabilityStatus, { bg: string; fg: string }> = {
+  RELIABLE: { bg: colors.greenSoft, fg: colors.green },
+  WATCH: { bg: colors.amberSoft, fg: colors.amber },
+  RISKY: { bg: colors.redSoft, fg: colors.red },
 };
 
 export function ReliabilityBadge({ status }: { status: ReliabilityStatus }) {
-  const colors = COLORS[status];
+  const s = STYLES[status];
   return (
-    <View style={[styles.badge, { backgroundColor: colors.bg }]}>
-      <Text style={[styles.text, { color: colors.fg }]}>{LABELS[status]}</Text>
+    <View style={[styles.badge, { backgroundColor: s.bg }]}>
+      <View style={[styles.dot, { backgroundColor: s.fg }]} />
+      <Text style={[styles.text, { color: s.fg }]}>{LABELS[status]}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 999,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
     alignSelf: "flex-start",
   },
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: radius.pill,
+  },
   text: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
   },
 });

@@ -3,13 +3,12 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const WEEKDAY_SCHEDULE = [1, 2, 3, 4, 5].map((dayOfWeek) => ({
+// Real listed hours for Oficina del Barbero: Mon-Sat 09:30-13:30.
+const SAMU_SCHEDULE = [1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
   dayOfWeek,
-  startMinute: 9 * 60, // 09:00
-  endMinute: 20 * 60, // 20:00
+  startMinute: 9 * 60 + 30,
+  endMinute: 13 * 60 + 30,
 }));
-
-const SATURDAY_SCHEDULE = [{ dayOfWeek: 6, startMinute: 10 * 60, endMinute: 15 * 60 }];
 
 async function main() {
   const passwordHash = await bcrypt.hash("password123", 10);
@@ -17,56 +16,54 @@ async function main() {
   const barber = await prisma.barber.upsert({
     where: { email: "carlos@barberia-demo.com" },
     update: {
-      businessName: "La Oficina del Barbero",
-      slug: "la-oficina-del-barbero",
+      businessName: "Oficina del Barbero",
+      slug: "oficina-del-barbero",
+      ownerName: "Samu",
+      phone: "+34698923061",
     },
     create: {
-      businessName: "La Oficina del Barbero",
-      slug: "la-oficina-del-barbero",
-      ownerName: "Carlos Ruiz",
+      businessName: "Oficina del Barbero",
+      slug: "oficina-del-barbero",
+      ownerName: "Samu",
       email: "carlos@barberia-demo.com",
       passwordHash,
-      phone: "+34600000000",
+      phone: "+34698923061",
       notificationSettings: { create: {} },
     },
   });
 
-  const [corte, corteBarba, afeitado] = await Promise.all([
+  // Real Booksy catalogue for Oficina del Barbero.
+  const [corte, corteBarba, recorteBarba, cortePerfilado] = await Promise.all([
     prisma.service.create({
-      data: { barberId: barber.id, name: "Corte de pelo", durationMinutes: 30, priceCents: 1500 },
+      data: { barberId: barber.id, name: "Corte caballero", durationMinutes: 30, priceCents: 1300 },
     }),
     prisma.service.create({
-      data: { barberId: barber.id, name: "Corte + barba", durationMinutes: 45, priceCents: 2200 },
+      data: { barberId: barber.id, name: "Corte+Barba", durationMinutes: 45, priceCents: 1900 },
     }),
     prisma.service.create({
-      data: { barberId: barber.id, name: "Afeitado clásico", durationMinutes: 20, priceCents: 1200 },
+      data: { barberId: barber.id, name: "Recorte de la barba", durationMinutes: 15, priceCents: 800 },
+    }),
+    prisma.service.create({
+      data: { barberId: barber.id, name: "Corte+Perfilado Barba", durationMinutes: 30, priceCents: 1500 },
     }),
   ]);
 
-  const carlosStaff = await prisma.staff.create({
+  const samuStaff = await prisma.staff.create({
     data: {
       barberId: barber.id,
-      name: "Carlos Ruiz",
-      phone: "+34600000000",
-      color: "#2563eb",
-      workingHours: { create: [...WEEKDAY_SCHEDULE, ...SATURDAY_SCHEDULE] },
+      name: "Samuel",
+      phone: "+34698923061",
+      color: "#D6A756",
+      workingHours: { create: SAMU_SCHEDULE },
     },
   });
 
-  const luisStaff = await prisma.staff.create({
+  const jotiStaff = await prisma.staff.create({
     data: {
       barberId: barber.id,
-      name: "Luis Fernández",
-      phone: "+34600999888",
-      color: "#16a34a",
-      // Luis only works afternoons Tue-Sat
-      workingHours: {
-        create: [2, 3, 4, 5, 6].map((dayOfWeek) => ({
-          dayOfWeek,
-          startMinute: 15 * 60,
-          endMinute: 21 * 60,
-        })),
-      },
+      name: "Joti",
+      color: "#5E8DFF",
+      workingHours: { create: SAMU_SCHEDULE },
     },
   });
 
@@ -98,12 +95,12 @@ async function main() {
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   while (tomorrow.getDay() === 0) tomorrow.setDate(tomorrow.getDate() + 1); // skip Sunday (closed)
-  tomorrow.setHours(10, 0, 0, 0);
 
+  tomorrow.setHours(10, 0, 0, 0);
   await prisma.appointment.create({
     data: {
       barberId: barber.id,
-      staffId: carlosStaff.id,
+      staffId: samuStaff.id,
       clientId: reliableClient.id,
       serviceId: corte.id,
       startTime: tomorrow,
@@ -113,16 +110,16 @@ async function main() {
   });
   await prisma.client.update({ where: { id: reliableClient.id }, data: { totalAppointments: { increment: 1 } } });
 
-  const tomorrowAfternoon = new Date(tomorrow);
-  tomorrowAfternoon.setHours(17, 0, 0, 0);
+  const tomorrowLater = new Date(tomorrow);
+  tomorrowLater.setHours(12, 0, 0, 0);
   await prisma.appointment.create({
     data: {
       barberId: barber.id,
-      staffId: luisStaff.id,
+      staffId: samuStaff.id,
       clientId: riskyClient.id,
       serviceId: corteBarba.id,
-      startTime: tomorrowAfternoon,
-      endTime: new Date(tomorrowAfternoon.getTime() + corteBarba.durationMinutes * 60 * 1000),
+      startTime: tomorrowLater,
+      endTime: new Date(tomorrowLater.getTime() + corteBarba.durationMinutes * 60 * 1000),
       status: "CONFIRMED",
     },
   });
@@ -130,10 +127,10 @@ async function main() {
 
   console.log("Seed complete:");
   console.log(`  Barber login -> email: ${barber.email} / password: password123`);
-  console.log(`  Business -> ${barber.businessName}`);
+  console.log(`  Business -> ${barber.businessName} (Llano de Brujas, Murcia)`);
   console.log(`  Public booking slug -> ${barber.slug}`);
-  console.log(`  Staff -> ${carlosStaff.name}, ${luisStaff.name}`);
-  console.log(`  Services: ${[corte.name, corteBarba.name, afeitado.name].join(", ")}`);
+  console.log(`  Staff -> ${samuStaff.name}, ${jotiStaff.name} (L-S 09:30-13:30)`);
+  console.log(`  Services: ${[corte.name, corteBarba.name, recorteBarba.name, cortePerfilado.name].join(", ")}`);
   console.log(`  Clients: ${reliableClient.name} (fiable), ${watchClient.name} (vigilar), ${riskyClient.name} (riesgo)`);
 }
 

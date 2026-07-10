@@ -1,11 +1,31 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError, type NotificationSettings } from "../api";
+import { useAuth } from "../context/AuthContext";
 
 export function SettingsPage() {
+  const { logout } = useAuth();
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function handleDeleteAccount() {
+    if (!deletePassword) return;
+    if (!window.confirm("Se borrará permanentemente tu negocio con todos sus barberos, clientes y citas. ¿Continuar?")) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await api.deleteAccount(deletePassword);
+      logout();
+    } catch (err) {
+      setDeleteError(err instanceof ApiError ? err.message : "No se pudo eliminar la cuenta");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   useEffect(() => {
     api.getSettings().then((r) => setSettings(r.settings));
@@ -118,6 +138,26 @@ export function SettingsPage() {
           {saving ? "Guardando..." : "Guardar cambios"}
         </button>
       </form>
+
+      <div className="danger-zone">
+        <h2>Eliminar cuenta</h2>
+        <p className="muted">
+          Se borrará permanentemente tu negocio con todos sus barberos, clientes, citas y recordatorios. Esta acción no se puede
+          deshacer.
+        </p>
+        {deleteError && <div className="alert-error">{deleteError}</div>}
+        <div className="form-row">
+          <input
+            type="password"
+            placeholder="Tu contraseña"
+            value={deletePassword}
+            onChange={(e) => setDeletePassword(e.target.value)}
+          />
+          <button type="button" className="btn-danger" onClick={handleDeleteAccount} disabled={!deletePassword || deleting}>
+            {deleting ? "Eliminando..." : "Eliminar cuenta"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

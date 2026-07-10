@@ -1,5 +1,6 @@
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, StyleSheet, Text } from "react-native";
 import { buildDateStrip } from "../utils";
+import { colors, radius } from "../theme";
 
 export function DateStrip({ selected, onSelect }: { selected: string; onSelect: (dateStr: string) => void }) {
   const days = buildDateStrip();
@@ -15,8 +16,8 @@ export function DateStrip({ selected, onSelect }: { selected: string; onSelect: 
         const isSelected = item.dateStr === selected;
         return (
           <Pressable onPress={() => onSelect(item.dateStr)} style={[styles.day, isSelected && styles.daySelected]}>
-            <Text style={[styles.dayLabel, isSelected && styles.textSelected]}>{item.dayLabel}</Text>
-            <Text style={[styles.dayNumber, isSelected && styles.textSelected]}>{item.dayNumber}</Text>
+            <Text style={[styles.dayLabel, isSelected && styles.dayLabelSelected]}>{item.dayLabel}</Text>
+            <Text style={[styles.dayNumber, isSelected && styles.dayNumberSelected]}>{item.dayNumber}</Text>
           </Pressable>
         );
       }}
@@ -31,29 +32,35 @@ const styles = StyleSheet.create({
   },
   day: {
     width: 52,
-    height: 62,
-    borderRadius: 12,
+    height: 64,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: "#e3e3ea",
-    backgroundColor: "#fff",
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
+    gap: 2,
   },
   daySelected: {
-    backgroundColor: "#2563eb",
-    borderColor: "#2563eb",
+    backgroundColor: colors.gold,
+    borderColor: colors.gold,
   },
   dayLabel: {
     fontSize: 11,
-    color: "#6b6b78",
+    color: colors.muted,
     textTransform: "capitalize",
+    letterSpacing: 0.3,
+  },
+  dayLabelSelected: {
+    color: "#3A2D12",
+    fontWeight: "700",
   },
   dayNumber: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
-    color: "#1c1c26",
+    color: colors.text,
   },
-  textSelected: {
-    color: "#fff",
+  dayNumberSelected: {
+    color: "#1F1808",
   },
 });

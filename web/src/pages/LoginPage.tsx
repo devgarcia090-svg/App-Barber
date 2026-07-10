@@ -27,9 +27,13 @@ export function LoginPage() {
 
   return (
     <div className="auth-page">
+      <div className="auth-brand">
+        <div className="auth-logo">✂</div>
+        <h1 className="auth-title">OFICINA DEL BARBERO</h1>
+        <div className="auth-divider" />
+        <p className="auth-sub">Llano de Brujas · Murcia</p>
+      </div>
       <form className="auth-card" onSubmit={handleSubmit}>
-        <h1>App Barber</h1>
-        <p className="muted">Panel del negocio</p>
         {error && <div className="alert-error">{error}</div>}
         <label>
           Email

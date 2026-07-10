@@ -128,6 +128,9 @@ export const api = {
   register: (data: { businessName: string; ownerName: string; email: string; password: string; phone?: string }) =>
     request<{ token: string; barber: Barber }>("/api/auth/register", { method: "POST", body: JSON.stringify(data) }),
 
+  deleteAccount: (password: string) =>
+    request<void>("/api/auth/account", { method: "DELETE", body: JSON.stringify({ password }) }),
+
   getServices: () => request<{ services: Service[] }>("/api/services"),
   createService: (data: { name: string; durationMinutes: number; priceCents: number }) =>
     request<{ service: Service }>("/api/services", { method: "POST", body: JSON.stringify(data) }),

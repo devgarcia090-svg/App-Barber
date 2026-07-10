@@ -1,8 +1,10 @@
 import { ActivityIndicator, View } from "react-native";
-import { NavigationContainer } from "@react-navigation/native";
+import { DarkTheme, NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../context/AuthContext";
+import { colors } from "../theme";
 import { LoginScreen } from "../screens/LoginScreen";
 import { RegisterScreen } from "../screens/RegisterScreen";
 import { AgendaScreen } from "../screens/AgendaScreen";
@@ -27,22 +29,61 @@ export type RootStackParamList = {
   Settings: undefined;
 };
 
+const navTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    primary: colors.gold,
+    background: colors.bg,
+    card: colors.surface,
+    text: colors.text,
+    border: colors.border,
+    notification: colors.gold,
+  },
+};
+
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const Tab = createBottomTabNavigator();
-const RootStack = createNativeStackNavigator();
+const RootStack = createNativeStackNavigator<RootStackParamList>();
 
 function AuthNavigator() {
   return (
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
       <AuthStack.Screen name="Login" component={LoginScreen} />
-      <AuthStack.Screen name="Register" component={RegisterScreen} options={{ headerShown: true, title: "Crear negocio" }} />
+      <AuthStack.Screen
+        name="Register"
+        component={RegisterScreen}
+        options={{ headerShown: true, title: "Crear negocio", headerTintColor: colors.gold, headerTitleStyle: { color: colors.text } }}
+      />
     </AuthStack.Navigator>
   );
 }
 
+const TAB_ICONS: Record<string, { active: React.ComponentProps<typeof Ionicons>["name"]; inactive: React.ComponentProps<typeof Ionicons>["name"] }> = {
+  Agenda: { active: "calendar", inactive: "calendar-outline" },
+  NuevaCita: { active: "add-circle", inactive: "add-circle-outline" },
+  Clientes: { active: "people", inactive: "people-outline" },
+  Mas: { active: "menu", inactive: "menu-outline" },
+};
+
 function MainTabs() {
   return (
-    <Tab.Navigator screenOptions={{ headerShown: false }}>
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarActiveTintColor: colors.gold,
+        tabBarInactiveTintColor: colors.faint,
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
+        },
+        tabBarLabelStyle: { fontSize: 10.5, fontWeight: "600" },
+        tabBarIcon: ({ focused, color, size }) => {
+          const icons = TAB_ICONS[route.name] ?? TAB_ICONS.Agenda;
+          return <Ionicons name={focused ? icons.active : icons.inactive} size={size} color={color} />;
+        },
+      })}
+    >
       <Tab.Screen name="Agenda" component={AgendaScreen} />
       <Tab.Screen name="NuevaCita" component={NewAppointmentScreen} options={{ title: "Nueva cita" }} />
       <Tab.Screen name="Clientes" component={ClientsScreen} />
@@ -53,12 +94,18 @@ function MainTabs() {
 
 function MainNavigator() {
   return (
-    <RootStack.Navigator>
+    <RootStack.Navigator
+      screenOptions={{
+        headerTintColor: colors.gold,
+        headerTitleStyle: { color: colors.text },
+        headerStyle: { backgroundColor: colors.surface },
+      }}
+    >
       <RootStack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
       <RootStack.Screen name="ClientDetail" component={ClientDetailScreen} options={{ title: "Cliente" }} />
       <RootStack.Screen name="Staff" component={StaffScreen} options={{ title: "Barberos" }} />
       <RootStack.Screen name="Services" component={ServicesScreen} options={{ title: "Servicios" }} />
-      <RootStack.Screen name="Settings" component={SettingsScreen} options={{ title: "Ajustes" }} />
+      <RootStack.Screen name="Settings" component={SettingsScreen} options={{ title: "Recordatorios y avisos" }} />
     </RootStack.Navigator>
   );
 }
@@ -68,11 +115,11 @@ export function RootNavigator() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator />
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg }}>
+        <ActivityIndicator color={colors.gold} />
       </View>
     );
   }
 
-  return <NavigationContainer>{barber ? <MainNavigator /> : <AuthNavigator />}</NavigationContainer>;
+  return <NavigationContainer theme={navTheme}>{barber ? <MainNavigator /> : <AuthNavigator />}</NavigationContainer>;
 }

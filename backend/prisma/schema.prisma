@@ -3,14 +3,42 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-// NOTE: SQLite has no native enum type, so the "enum-like" fields below are
-// plain Strings constrained by the TS union types in src/types.ts (and
-// validated with zod at the API boundary). Swapping DATABASE_URL to Postgres
-// later would let these become real Prisma enums if desired.
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  NO_SHOW
+  COMPLETED
+}
+
+enum ReliabilityStatus {
+  RELIABLE
+  WATCH
+  RISKY
+}
+
+enum ReminderChannel {
+  EMAIL
+  WHATSAPP
+  SMS
+}
+
+enum ReminderStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum ReminderKind {
+  CLIENT_REMINDER
+  BARBER_PREWARNING
+}
 
 model Barber {
   id           String   @id @default(cuid())
@@ -124,8 +152,7 @@ model Client {
   noShowCount       Int @default(0)
   lateCancelCount   Int @default(0)
 
-  /// RELIABLE | WATCH | RISKY
-  reliabilityStatus String @default("RELIABLE")
+  reliabilityStatus ReliabilityStatus @default(RELIABLE)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -148,8 +175,7 @@ model Appointment {
 
   startTime DateTime
   endTime   DateTime
-  /// PENDING | CONFIRMED | CANCELLED | NO_SHOW | COMPLETED
-  status    String   @default("PENDING")
+  status    AppointmentStatus @default(PENDING)
 
   cancelledAt       DateTime?
   cancelNoticeHours Float?
@@ -169,13 +195,10 @@ model Reminder {
   appointmentId String
   appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
 
-  /// CLIENT_REMINDER | BARBER_PREWARNING
-  kind         String
-  /// EMAIL | WHATSAPP | SMS
-  channel      String
+  kind         ReminderKind
+  channel      ReminderChannel
   scheduledFor DateTime
-  /// PENDING | SENT | FAILED | CANCELLED
-  status       String    @default("PENDING")
+  status       ReminderStatus @default(PENDING)
   sentAt       DateTime?
   error        String?
 

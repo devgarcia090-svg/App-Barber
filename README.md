@@ -74,6 +74,46 @@ Variables de entorno relevantes (ver `backend/.env.example`):
 Tests: `npm test`. Los tests unitarios corren siempre; los de integración con base de datos solo si
 defines `TEST_DATABASE_URL` apuntando a un Postgres desechable (¡nunca al de producción, borran todo!).
 
+## Despliegue en producción (Railway + Supabase)
+
+> **Importante**: Supabase aloja **solo la base de datos**. El servidor de la API (el código de
+> `backend/`, que es Express/Node) **no** corre "dentro de Supabase" — hay que desplegarlo en un
+> hosting de Node. Aquí usamos **Railway**, que se conecta a la base de datos de Supabase. Es decir:
+> *base de datos en Supabase + API en Railway*.
+
+El repo ya trae todo lo necesario para desplegar en Railway sin tocar nada más:
+
+- `backend/railway.json`: le dice a Railway cómo construir y arrancar (usa `/health` como healthcheck).
+- Script `start:prod` (`prisma migrate deploy && node dist/server.js`): **aplica las migraciones solo**
+  en cada despliegue y luego arranca el servidor. No hay que ejecutar migraciones a mano.
+- `postinstall` genera el cliente de Prisma automáticamente durante el build.
+
+Pasos:
+
+1. Ten ya creado el proyecto de **Supabase** con sus dos cadenas de conexión (ver sección *Backend*).
+2. Entra en https://railway.app, **New Project → Deploy from GitHub repo** y elige este repositorio.
+3. En el servicio creado, ve a **Settings → Root Directory** y pon `backend` (es un monorepo; así
+   Railway construye solo el backend y encuentra `railway.json`).
+4. En **Variables**, añade las mismas que tienes en tu `.env` local:
+   - `DATABASE_URL` y `DIRECT_URL` (las dos URIs de Supabase, con la contraseña real).
+   - `JWT_SECRET` (una cadena larga y aleatoria — **no** reutilices la de ejemplo).
+   - Opcionales según quieras que funcionen de verdad: `SMTP_*` (emails), `TWILIO_*` (WhatsApp/SMS),
+     `REMINDER_CRON`.
+   - **No** configures `NODE_ENV=production` en Railway: rompería el build (Railway dejaría de instalar
+     las herramientas de compilación). El código no lo necesita.
+5. Railway construye y despliega. Cuando termine, en **Settings → Networking → Generate Domain** obtienes
+   la URL pública HTTPS, por ejemplo `https://app-barber-production.up.railway.app`.
+6. Comprueba que responde: abre `https://TU-URL/health` → debe devolver `{"ok":true}`.
+7. **Siembra los datos iniciales una sola vez** (crea el negocio, servicios, etc.). Desde tu ordenador,
+   con el `backend/.env` apuntando a la **base de datos de Supabase** (no a la local), ejecuta
+   `npm run seed`. (Railway no ejecuta el seed automáticamente, y así lo controlas tú.)
+
+Luego, para que la **app móvil** hable con esa API en producción, define en el build de móvil
+`EXPO_PUBLIC_API_URL=https://TU-URL` (ver sección *App móvil* y el checklist de tiendas más abajo).
+
+El mismo `railway.json` y los mismos scripts sirven casi igual en **Render** o **Fly.io** si algún día
+cambias de host (solo cambia la forma de declarar el comando de arranque y las variables).
+
 ## Panel web
 
 ```
@@ -121,8 +161,14 @@ Requisitos que ya cumple la app y los que quedan pendientes antes de enviarla a 
   Play Console ("Data safety") que la app recoge datos de contacto de clientes.
 - ⬜ **Builds de producción**: generar con EAS Build (`npx eas build`) — requiere cuenta de Apple
   Developer (99 €/año) y de Google Play Developer (25 € una vez).
-- ⬜ **Backend en producción**: la API debe estar desplegada en una URL pública HTTPS (Railway,
-  Render, Fly.io...) apuntando a Supabase; Apple rechaza apps que dependan de un servidor local.
+- 🟡 **Backend en producción**: el repo ya está **listo para desplegar en Railway** (config
+  `railway.json`, migraciones automáticas en cada deploy, healthcheck) apuntando a Supabase — ver la
+  sección *Despliegue en producción*. Falta ejecutar el despliegue y apuntar la app a la URL resultante.
+  Apple rechaza apps que dependan de un servidor local, así que este paso es obligatorio antes de enviar.
+- ⬜ **Endurecer la API antes de abrirla al público** (recomendado, no bloquea el deploy): cerrar CORS a
+  los orígenes propios, añadir rate limiting en login y en las reservas públicas, y proteger el script de
+  seed para que no pueda ejecutarse por error contra producción (hoy crea un usuario con contraseña
+  conocida `password123`).
 
 ## Modelo de datos (resumen)
 

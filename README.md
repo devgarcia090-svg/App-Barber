@@ -123,6 +123,22 @@ npm install
 npm run dev             # http://localhost:5173
 ```
 
+### Desplegar la web en Netlify
+
+El panel web es una app estática (Vite), ideal para Netlify. El repo ya trae la config lista
+(`netlify.toml` en la raíz y `web/public/_redirects` para el fallback de SPA, necesario porque usa
+rutas de cliente como `/reserva/:slug`). Pasos:
+
+1. En https://netlify.com: **Add new site → Import an existing project** y elige este repositorio.
+2. Netlify leerá `netlify.toml` automáticamente (construye desde `web/`, publica `web/dist`). **Deja
+   vacío** el campo "Base directory" en la UI — lo gobierna el `netlify.toml`.
+3. En **Site settings → Environment variables**, añade `VITE_API_URL` con la URL pública de tu API en
+   Railway (p. ej. `https://app-barber-production.up.railway.app`). Ojo: Vite la incrusta en el build,
+   así que si la cambias hay que volver a desplegar.
+4. Deploy. Tendrás la web en `https://TU-SITIO.netlify.app` (puedes conectar un dominio propio después).
+
+Con esto, el enlace de reserva pública para tus clientes es `https://TU-SITIO.netlify.app/reserva/oficina-del-barbero`.
+
 ## App móvil (Expo)
 
 ```

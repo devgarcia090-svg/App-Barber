@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+import { supabase, BUSINESS_SLUG } from "./lib/supabase";
 
 export interface Barber {
   id: string;
@@ -82,7 +82,7 @@ export interface NotificationSettings {
   barberPrewarningHoursBefore: string;
 }
 
-class ApiError extends Error {
+export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
     super(message);
@@ -90,116 +90,230 @@ class ApiError extends Error {
   }
 }
 
-let authToken: string | null = localStorage.getItem("token");
-
-export function setAuthToken(token: string | null) {
-  authToken = token;
-  if (token) localStorage.setItem("token", token);
-  else localStorage.removeItem("token");
+// ---- Reliability pre-warning (ported from the old backend) ------------------
+export function buildPrewarning(c: Pick<Client, "name" | "noShowCount" | "lateCancelCount" | "reliabilityStatus">): Prewarning | null {
+  if (c.reliabilityStatus === "RELIABLE") return null;
+  const strikes = c.noShowCount + c.lateCancelCount;
+  const parts: string[] = [];
+  if (c.noShowCount > 0) parts.push(`${c.noShowCount} vez${c.noShowCount === 1 ? "" : "es"} no se ha presentado`);
+  if (c.lateCancelCount > 0) parts.push(`${c.lateCancelCount} cancelación${c.lateCancelCount === 1 ? "" : "es"} de última hora`);
+  const detail = parts.join(" y ");
+  const message =
+    c.reliabilityStatus === "RISKY"
+      ? `Atención: ${c.name} tiene historial de riesgo (${strikes} incidencias: ${detail}). Considera pedir confirmación extra, señal/depósito, o reconfirmar por WhatsApp el mismo día.`
+      : `Aviso: ${c.name} ${detail} anteriormente. Convendría reconfirmar la cita.`;
+  return { status: c.reliabilityStatus, message };
 }
 
-export function getAuthToken() {
-  return authToken;
+// ---- Session / current business --------------------------------------------
+let barberId: string | null = null;
+
+async function loadBarber(): Promise<Barber> {
+  const { data, error } = await supabase
+    .from("Barber")
+    .select("id,businessName,slug,ownerName,email,phone")
+    .single();
+  if (error || !data) throw new ApiError(404, "No hay un negocio vinculado a esta cuenta");
+  barberId = data.id;
+  return data as Barber;
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const headers: Record<string, string> = { "Content-Type": "application/json", ...(options.headers as Record<string, string>) };
-  if (authToken) headers.Authorization = `Bearer ${authToken}`;
-
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
-  const body = res.status === 204 ? null : await res.json().catch(() => null);
-
-  if (!res.ok) {
-    const message = body?.error ? (typeof body.error === "string" ? body.error : JSON.stringify(body.error)) : res.statusText;
-    throw new ApiError(res.status, message);
+export async function loadCurrentBarber(): Promise<Barber | null> {
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) return null;
+  try {
+    return await loadBarber();
+  } catch {
+    return null;
   }
-  return body as T;
 }
 
-export { ApiError };
+// supabase-js is untyped here (no generated Database types), so results come
+// back loosely typed; wrap centralises error handling and hands back the row.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function wrap(res: { data: any; error: { message: string } | null }): any {
+  if (res.error) throw new ApiError(400, res.error.message);
+  return res.data;
+}
 
 export const api = {
-  login: (email: string, password: string) =>
-    request<{ token: string; barber: Barber }>("/api/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
-
-  register: (data: { businessName: string; ownerName: string; email: string; password: string; phone?: string }) =>
-    request<{ token: string; barber: Barber }>("/api/auth/register", { method: "POST", body: JSON.stringify(data) }),
-
-  deleteAccount: (password: string) =>
-    request<void>("/api/auth/account", { method: "DELETE", body: JSON.stringify({ password }) }),
-
-  getServices: () => request<{ services: Service[] }>("/api/services"),
-  createService: (data: { name: string; durationMinutes: number; priceCents: number }) =>
-    request<{ service: Service }>("/api/services", { method: "POST", body: JSON.stringify(data) }),
-  updateService: (id: string, data: Partial<{ name: string; durationMinutes: number; priceCents: number; active: boolean }>) =>
-    request<{ service: Service }>(`/api/services/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
-  deleteService: (id: string) => request<void>(`/api/services/${id}`, { method: "DELETE" }),
-
-  getStaff: () => request<{ staff: Staff[] }>("/api/staff"),
-  createStaff: (data: { name: string; phone?: string; email?: string; color?: string }) =>
-    request<{ staff: Staff }>("/api/staff", { method: "POST", body: JSON.stringify(data) }),
-  updateStaff: (id: string, data: Partial<{ name: string; phone: string; email: string; color: string; active: boolean }>) =>
-    request<{ staff: Staff }>(`/api/staff/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
-  setWorkingHours: (id: string, schedule: WorkingHourRow[]) =>
-    request<{ workingHours: WorkingHourRow[] }>(`/api/staff/${id}/working-hours`, {
-      method: "PUT",
-      body: JSON.stringify({ schedule }),
-    }),
-
-  getClients: () => request<{ clients: Client[] }>("/api/clients"),
-  getClient: (id: string) => request<{ client: Client & { appointments: Appointment[] } }>(`/api/clients/${id}`),
-  createClient: (data: { name: string; phone: string; email?: string }) =>
-    request<{ client: Client }>("/api/clients", { method: "POST", body: JSON.stringify(data) }),
-
-  getAppointments: (params?: { from?: string; to?: string; staffId?: string }) => {
-    const qs = new URLSearchParams(params as Record<string, string>).toString();
-    return request<{ appointments: Appointment[] }>(`/api/appointments${qs ? `?${qs}` : ""}`);
+  async login(email: string, password: string) {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error || !data.session) throw new ApiError(401, "Email o contraseña incorrectos");
+    await supabase.rpc("claim_business", { p_slug: BUSINESS_SLUG }); // no-op if already linked
+    const barber = await loadBarber();
+    return { token: data.session.access_token, barber };
   },
-  createAppointment: (data: { staffId: string; clientId: string; serviceId: string; startTime: string; notes?: string }) =>
-    request<{ appointment: Appointment; prewarning: Prewarning | null }>("/api/appointments", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-  setAppointmentStatus: (id: string, status: AppointmentStatus) =>
-    request<{ appointment: Appointment }>(`/api/appointments/${id}/status`, {
-      method: "PATCH",
-      body: JSON.stringify({ status }),
-    }),
-  rescheduleAppointment: (id: string, startTime: string) =>
-    request<{ appointment: Appointment }>(`/api/appointments/${id}/reschedule`, {
-      method: "PATCH",
-      body: JSON.stringify({ startTime }),
-    }),
 
-  getSettings: () => request<{ settings: NotificationSettings }>("/api/settings"),
-  updateSettings: (data: Partial<NotificationSettings>) =>
-    request<{ settings: NotificationSettings }>("/api/settings", { method: "PATCH", body: JSON.stringify(data) }),
-
-  // ---- Public booking (no auth) ----
-  publicGetBusiness: (slug: string) =>
-    request<{
-      barber: { businessName: string; slug: string; phone: string | null };
-      services: Service[];
-      staff: { id: string; name: string; color: string }[];
-    }>(`/api/public/${slug}`),
-  publicGetAvailability: (slug: string, params: { serviceId: string; from: string; to: string; staffId?: string }) => {
-    const qs = new URLSearchParams(params as Record<string, string>).toString();
-    return request<{ days: { date: string; freeCount: number; totalCount: number }[] }>(`/api/public/${slug}/availability?${qs}`);
-  },
-  publicGetDaySlots: (slug: string, params: { serviceId: string; date: string; staffId?: string }) => {
-    const qs = new URLSearchParams(params as Record<string, string>).toString();
-    return request<{ slots: { startMinute: number; staffIds: string[] }[] }>(`/api/public/${slug}/day-slots?${qs}`);
-  },
-  publicBook: (
-    slug: string,
-    data: {
-      staffId: string;
-      serviceId: string;
-      startTime: string;
-      clientName: string;
-      clientPhone: string;
-      clientEmail?: string;
-      notes?: string;
+  async register(d: { businessName: string; ownerName: string; email: string; password: string; phone?: string }) {
+    const { data, error } = await supabase.auth.signUp({ email: d.email, password: d.password });
+    if (error) throw new ApiError(400, error.message);
+    if (!data.session) {
+      const { error: e2 } = await supabase.auth.signInWithPassword({ email: d.email, password: d.password });
+      if (e2) throw new ApiError(400, "Cuenta creada. Confirma tu email y vuelve a iniciar sesión.");
     }
-  ) => request<{ appointment: Appointment }>(`/api/public/${slug}/book`, { method: "POST", body: JSON.stringify(data) }),
+    await supabase.rpc("claim_business", { p_slug: BUSINESS_SLUG });
+    const { data: u } = await supabase.auth.getUser();
+    if (u.user) {
+      await supabase
+        .from("Barber")
+        .update({ businessName: d.businessName, ownerName: d.ownerName, phone: d.phone ?? null })
+        .eq("authUserId", u.user.id);
+    }
+    const barber = await loadBarber();
+    const { data: s } = await supabase.auth.getSession();
+    return { token: s.session?.access_token ?? "", barber };
+  },
+
+  async logout() {
+    barberId = null;
+    await supabase.auth.signOut();
+  },
+
+  async deleteAccount(_password?: string) {
+    if (barberId) await supabase.from("Barber").delete().eq("id", barberId);
+    await supabase.auth.signOut();
+    barberId = null;
+  },
+
+  // ---- Services ----
+  async getServices() {
+    const data = wrap(await supabase.from("Service").select("*").order("createdAt"));
+    return { services: data as Service[] };
+  },
+  async createService(d: { name: string; durationMinutes: number; priceCents: number }) {
+    const data = wrap(await supabase.from("Service").insert({ ...d, barberId, active: true }).select().single());
+    return { service: data as Service };
+  },
+  async updateService(id: string, d: Partial<{ name: string; durationMinutes: number; priceCents: number; active: boolean }>) {
+    const data = wrap(await supabase.from("Service").update(d).eq("id", id).select().single());
+    return { service: data as Service };
+  },
+  async deleteService(id: string) {
+    wrap(await supabase.from("Service").delete().eq("id", id).select().maybeSingle());
+  },
+
+  // ---- Staff ----
+  async getStaff() {
+    const data = wrap(
+      await supabase
+        .from("Staff")
+        .select("id,name,phone,email,color,active,workingHours:StaffWorkingHours(id,dayOfWeek,startMinute,endMinute)")
+        .order("createdAt")
+    );
+    return { staff: (data as Staff[]).map((s) => ({ ...s, workingHours: s.workingHours ?? [] })) };
+  },
+  async createStaff(d: { name: string; phone?: string; email?: string; color?: string }) {
+    const data = wrap(await supabase.from("Staff").insert({ ...d, barberId }).select().single());
+    return { staff: { ...(data as Staff), workingHours: [] } };
+  },
+  async updateStaff(id: string, d: Partial<{ name: string; phone: string; email: string; color: string; active: boolean }>) {
+    const data = wrap(await supabase.from("Staff").update(d).eq("id", id).select().single());
+    return { staff: { ...(data as Staff), workingHours: [] } };
+  },
+  async setWorkingHours(id: string, schedule: WorkingHourRow[]) {
+    const del = await supabase.from("StaffWorkingHours").delete().eq("staffId", id);
+    if (del.error) throw new ApiError(400, del.error.message);
+    if (schedule.length > 0) {
+      const rows = schedule.map((r) => ({ staffId: id, dayOfWeek: r.dayOfWeek, startMinute: r.startMinute, endMinute: r.endMinute }));
+      const ins = await supabase.from("StaffWorkingHours").insert(rows);
+      if (ins.error) throw new ApiError(400, ins.error.message);
+    }
+    return { workingHours: schedule };
+  },
+
+  // ---- Clients ----
+  async getClients() {
+    const data = wrap(await supabase.from("Client").select("*").order("name")) as Client[];
+    return { clients: data.map((c) => ({ ...c, prewarning: buildPrewarning(c) })) };
+  },
+  async getClient(id: string) {
+    const data = wrap(
+      await supabase
+        .from("Client")
+        .select("*, appointments:Appointment(*, service:Service(*), staff:Staff(*))")
+        .eq("id", id)
+        .single()
+    ) as Client & { appointments: Appointment[] };
+    return { client: { ...data, prewarning: buildPrewarning(data) } };
+  },
+  async createClient(d: { name: string; phone: string; email?: string }) {
+    const data = wrap(await supabase.from("Client").insert({ ...d, barberId }).select().single());
+    return { client: data as Client };
+  },
+
+  // ---- Appointments ----
+  async getAppointments(params?: { from?: string; to?: string; staffId?: string }) {
+    let q = supabase
+      .from("Appointment")
+      .select("*, client:Client(*), service:Service(*), staff:Staff(*)")
+      .order("startTime");
+    if (params?.from) q = q.gte("startTime", params.from);
+    if (params?.to) q = q.lte("startTime", params.to);
+    if (params?.staffId) q = q.eq("staffId", params.staffId);
+    const data = wrap(await q) as Appointment[];
+    return { appointments: data.map((a) => ({ ...a, prewarning: a.client ? buildPrewarning(a.client) : null })) };
+  },
+  async createAppointment(d: { staffId: string; clientId: string; serviceId: string; startTime: string; notes?: string }) {
+    const { data, error } = await supabase.rpc("owner_book", {
+      p_staff_id: d.staffId,
+      p_client_id: d.clientId,
+      p_service_id: d.serviceId,
+      p_start: d.startTime,
+      p_notes: d.notes ?? null,
+    });
+    if (error) throw new ApiError(422, translateBookingError(error.message));
+    return { appointment: data as Appointment, prewarning: null };
+  },
+  async setAppointmentStatus(id: string, status: AppointmentStatus) {
+    const data = wrap(await supabase.from("Appointment").update({ status }).eq("id", id).select().single());
+    return { appointment: data as Appointment };
+  },
+
+  // ---- Settings ----
+  async getSettings() {
+    const data = wrap(await supabase.from("NotificationSettings").select("*").single());
+    return { settings: data as NotificationSettings };
+  },
+  async updateSettings(d: Partial<NotificationSettings>) {
+    const data = wrap(await supabase.from("NotificationSettings").update(d).eq("barberId", barberId).select().single());
+    return { settings: data as NotificationSettings };
+  },
+
+  // ---- Public booking (anon) ----
+  async publicGetBusiness(slug: string) {
+    const { data, error } = await supabase.rpc("public_business", { p_slug: slug });
+    if (error) throw new ApiError(404, "No se encontró el negocio");
+    return data as { barber: { businessName: string; slug: string; phone: string | null }; services: Service[]; staff: { id: string; name: string; color: string }[] };
+  },
+  async publicGetAvailability(slug: string, p: { serviceId: string; from: string; to: string; staffId?: string }) {
+    const { data, error } = await supabase.rpc("public_availability", {
+      p_slug: slug, p_service_id: p.serviceId, p_from: p.from, p_to: p.to, p_staff_id: p.staffId ?? null,
+    });
+    if (error) throw new ApiError(400, error.message);
+    return { days: (data as { date: string; freeCount: number; totalCount: number }[]) ?? [] };
+  },
+  async publicGetDaySlots(slug: string, p: { serviceId: string; date: string; staffId?: string }) {
+    const { data, error } = await supabase.rpc("public_day_slots", {
+      p_slug: slug, p_service_id: p.serviceId, p_date: p.date, p_staff_id: p.staffId ?? null,
+    });
+    if (error) throw new ApiError(400, error.message);
+    return { slots: (data as { startMinute: number; staffIds: string[] }[]) ?? [] };
+  },
+  async publicBook(slug: string, d: { staffId: string; serviceId: string; startTime: string; clientName: string; clientPhone: string; clientEmail?: string; notes?: string }) {
+    const { data, error } = await supabase.rpc("public_book", {
+      p_slug: slug, p_staff_id: d.staffId, p_service_id: d.serviceId, p_start: d.startTime,
+      p_client_name: d.clientName, p_client_phone: d.clientPhone, p_client_email: d.clientEmail ?? null, p_notes: d.notes ?? null,
+    });
+    if (error) throw new ApiError(422, translateBookingError(error.message));
+    return { appointment: data as Appointment };
+  },
 };
+
+function translateBookingError(msg: string): string {
+  if (msg.includes("SLOT_TAKEN")) return "Ese hueco ya está ocupado. Elige otra hora.";
+  if (msg.includes("OUTSIDE_HOURS")) return "Esa hora está fuera del horario de trabajo.";
+  if (msg.includes("SERVICE_NOT_FOUND")) return "Servicio no encontrado.";
+  if (msg.includes("STAFF_NOT_FOUND")) return "Barbero no encontrado.";
+  return msg;
+}

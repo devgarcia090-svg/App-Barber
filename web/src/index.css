@@ -610,13 +610,34 @@ input[type="checkbox"] {
   flex-direction: column;
   gap: 0.5rem;
 }
+.working-hours-day {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.working-hours-day .checkbox-label {
+  min-width: 135px;
+  padding-top: 0.5rem;
+}
+.shift-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
 .working-hours-row {
   display: flex;
   align-items: center;
   gap: 0.6rem;
 }
-.working-hours-row .checkbox-label {
-  min-width: 135px;
+.shift-remove {
+  padding: 0.3rem 0.55rem;
+  color: var(--red);
+}
+.shift-add {
+  align-self: flex-start;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.7rem;
 }
 
 /* Stats */

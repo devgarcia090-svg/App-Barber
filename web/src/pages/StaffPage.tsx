@@ -13,18 +13,24 @@ function timeToMinutes(time: string): number {
   return h * 60 + m;
 }
 
-interface DaySchedule {
-  open: boolean;
+interface Shift {
   start: string;
   end: string;
 }
 
+interface DaySchedule {
+  open: boolean;
+  shifts: Shift[];
+}
+
 function scheduleFromWorkingHours(workingHours: WorkingHourRow[]): DaySchedule[] {
   return Array.from({ length: 7 }, (_, dayOfWeek) => {
-    const row = workingHours.find((w) => w.dayOfWeek === dayOfWeek);
-    return row
-      ? { open: true, start: minutesToTime(row.startMinute), end: minutesToTime(row.endMinute) }
-      : { open: false, start: "09:00", end: "20:00" };
+    const rows = workingHours
+      .filter((w) => w.dayOfWeek === dayOfWeek)
+      .sort((a, b) => a.startMinute - b.startMinute);
+    return rows.length > 0
+      ? { open: true, shifts: rows.map((r) => ({ start: minutesToTime(r.startMinute), end: minutesToTime(r.endMinute) })) }
+      : { open: false, shifts: [{ start: "09:00", end: "13:00" }] };
   });
 }
 
@@ -37,22 +43,51 @@ function WorkingHoursEditor({ staff, onSaved }: { staff: Staff; onSaved: (staff:
     setSchedule((prev) => prev.map((d, i) => (i === index ? { ...d, ...patch } : d)));
   }
 
+  function updateShift(dayIndex: number, shiftIndex: number, patch: Partial<Shift>) {
+    setSchedule((prev) =>
+      prev.map((d, i) => (i === dayIndex ? { ...d, shifts: d.shifts.map((s, j) => (j === shiftIndex ? { ...s, ...patch } : s)) } : d))
+    );
+  }
+
+  function addShift(dayIndex: number) {
+    setSchedule((prev) =>
+      prev.map((d, i) => (i === dayIndex ? { ...d, shifts: [...d.shifts, { start: "16:00", end: "20:00" }] } : d))
+    );
+  }
+
+  function removeShift(dayIndex: number, shiftIndex: number) {
+    setSchedule((prev) =>
+      prev.map((d, i) => (i === dayIndex ? { ...d, shifts: d.shifts.filter((_, j) => j !== shiftIndex) } : d))
+    );
+  }
+
   async function save() {
     setSaving(true);
     setError(null);
     try {
-      const rows = schedule
-        .map((day, dayOfWeek) => ({ day, dayOfWeek }))
-        .filter(({ day }) => day.open)
-        .map(({ day, dayOfWeek }) => ({
-          dayOfWeek,
-          startMinute: timeToMinutes(day.start),
-          endMinute: timeToMinutes(day.end),
-        }));
+      const rows: WorkingHourRow[] = [];
+      for (let dayOfWeek = 0; dayOfWeek < schedule.length; dayOfWeek++) {
+        const day = schedule[dayOfWeek];
+        if (!day.open) continue;
+        const parsed = day.shifts
+          .map((s) => ({ startMinute: timeToMinutes(s.start), endMinute: timeToMinutes(s.end) }))
+          .sort((a, b) => a.startMinute - b.startMinute);
+        for (const s of parsed) {
+          if (s.endMinute <= s.startMinute) {
+            throw new Error(`Revisa un turno de ${DAY_NAMES[dayOfWeek]}: la hora de fin debe ser posterior a la de inicio`);
+          }
+        }
+        for (let i = 1; i < parsed.length; i++) {
+          if (parsed[i].startMinute < parsed[i - 1].endMinute) {
+            throw new Error(`Los turnos de ${DAY_NAMES[dayOfWeek]} se solapan`);
+          }
+        }
+        rows.push(...parsed.map((s) => ({ dayOfWeek, ...s })));
+      }
       await api.setWorkingHours(staff.id, rows);
       onSaved({ ...staff, workingHours: rows });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo guardar el horario");
+      setError(err instanceof ApiError ? err.message : err instanceof Error ? err.message : "No se pudo guardar el horario");
     } finally {
       setSaving(false);
     }
@@ -61,18 +96,30 @@ function WorkingHoursEditor({ staff, onSaved }: { staff: Staff; onSaved: (staff:
   return (
     <div className="working-hours">
       {error && <div className="alert-error">{error}</div>}
-      {schedule.map((day, i) => (
-        <div key={i} className="working-hours-row">
+      {schedule.map((day, dayIndex) => (
+        <div key={dayIndex} className="working-hours-day">
           <label className="checkbox-label">
-            <input type="checkbox" checked={day.open} onChange={(e) => updateDay(i, { open: e.target.checked })} />
-            {DAY_NAMES[i]}
+            <input type="checkbox" checked={day.open} onChange={(e) => updateDay(dayIndex, { open: e.target.checked })} />
+            {DAY_NAMES[dayIndex]}
           </label>
           {day.open && (
-            <>
-              <input type="time" value={day.start} onChange={(e) => updateDay(i, { start: e.target.value })} />
-              <span>-</span>
-              <input type="time" value={day.end} onChange={(e) => updateDay(i, { end: e.target.value })} />
-            </>
+            <div className="shift-list">
+              {day.shifts.map((shift, shiftIndex) => (
+                <div key={shiftIndex} className="working-hours-row">
+                  <input type="time" value={shift.start} onChange={(e) => updateShift(dayIndex, shiftIndex, { start: e.target.value })} />
+                  <span>-</span>
+                  <input type="time" value={shift.end} onChange={(e) => updateShift(dayIndex, shiftIndex, { end: e.target.value })} />
+                  {day.shifts.length > 1 && (
+                    <button type="button" className="btn-ghost shift-remove" onClick={() => removeShift(dayIndex, shiftIndex)}>
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button type="button" className="btn-ghost shift-add" onClick={() => addShift(dayIndex)}>
+                + Añadir turno
+              </button>
+            </div>
           )}
         </div>
       ))}
@@ -116,7 +163,10 @@ export function StaffPage() {
   return (
     <div>
       <h1>Barberos</h1>
-      <p className="muted">Cada barbero tiene su propia agenda y horario. El horario controla en qué franjas se pueden reservar citas.</p>
+      <p className="muted">
+        Cada barbero tiene su propia agenda y horario. Puedes añadir varios turnos el mismo día (por ejemplo, mañana y tarde) para
+        horario partido.
+      </p>
 
       <form className="card-form inline-form" onSubmit={handleCreate}>
         {error && <div className="alert-error">{error}</div>}

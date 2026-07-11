@@ -75,6 +75,19 @@ staffRouter.put("/:id/working-hours", async (req, res) => {
       return;
     }
   }
+  const byDay = new Map<number, typeof parsed.data.schedule>();
+  for (const row of parsed.data.schedule) {
+    byDay.set(row.dayOfWeek, [...(byDay.get(row.dayOfWeek) ?? []), row]);
+  }
+  for (const [dayOfWeek, shifts] of byDay) {
+    const sorted = [...shifts].sort((a, b) => a.startMinute - b.startMinute);
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i].startMinute < sorted[i - 1].endMinute) {
+        res.status(400).json({ error: `Los turnos se solapan para dayOfWeek ${dayOfWeek}` });
+        return;
+      }
+    }
+  }
 
   const workingHours = await prisma.$transaction(async (tx) => {
     await tx.staffWorkingHours.deleteMany({ where: { staffId: existing.id } });

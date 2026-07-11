@@ -70,23 +70,25 @@ export async function getAvailability(opts: {
     const capacity = new Set<number>();
 
     for (const member of staff) {
-      const shift = member.workingHours.find((w) => w.dayOfWeek === dayOfWeek);
-      if (!shift) continue;
+      const shifts = member.workingHours.filter((w) => w.dayOfWeek === dayOfWeek);
+      if (shifts.length === 0) continue;
       const busy = busyByStaff.get(member.id) ?? [];
 
-      for (let minute = shift.startMinute; minute + durationMinutes <= shift.endMinute; minute += SLOT_GRANULARITY_MINUTES) {
-        const slotStart = new Date(day);
-        slotStart.setHours(0, minute, 0, 0);
-        const startMs = slotStart.getTime();
-        const endMs = startMs + durationMinutes * 60 * 1000;
+      for (const shift of shifts) {
+        for (let minute = shift.startMinute; minute + durationMinutes <= shift.endMinute; minute += SLOT_GRANULARITY_MINUTES) {
+          const slotStart = new Date(day);
+          slotStart.setHours(0, minute, 0, 0);
+          const startMs = slotStart.getTime();
+          const endMs = startMs + durationMinutes * 60 * 1000;
 
-        if (startMs < now) continue;
-        capacity.add(minute);
-        if (busy.some((b) => startMs < b.end && endMs > b.start)) continue;
+          if (startMs < now) continue;
+          capacity.add(minute);
+          if (busy.some((b) => startMs < b.end && endMs > b.start)) continue;
 
-        const free = slotMap.get(minute) ?? [];
-        free.push(member.id);
-        slotMap.set(minute, free);
+          const free = slotMap.get(minute) ?? [];
+          free.push(member.id);
+          slotMap.set(minute, free);
+        }
       }
     }
 

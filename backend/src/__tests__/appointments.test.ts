@@ -160,6 +160,56 @@ describeDb("createAppointment", () => {
       })
     ).rejects.toBeInstanceOf(OutsideWorkingHoursError);
   });
+
+  it("supports a split shift (morning + afternoon) on the same day", async () => {
+    // Monday 09:00-13:00 and 16:00-20:00, closed in between.
+    const { barber, staff, service, client } = await makeBarberWithClientAndService([
+      { dayOfWeek: 1, startMinute: 9 * 60, endMinute: 13 * 60 },
+      { dayOfWeek: 1, startMinute: 16 * 60, endMinute: 20 * 60 },
+    ]);
+
+    const nextMonday = new Date();
+    nextMonday.setDate(nextMonday.getDate() + ((1 - nextMonday.getDay() + 7) % 7 || 7));
+
+    const morning = new Date(nextMonday);
+    morning.setHours(10, 0, 0, 0);
+    await expect(
+      createAppointment({
+        barberId: barber.id,
+        staffId: staff.id,
+        clientId: client.id,
+        serviceId: service.id,
+        startTime: morning,
+        endTime: new Date(morning.getTime() + service.durationMinutes * 60 * 1000),
+      })
+    ).resolves.toBeTruthy();
+
+    const afternoon = new Date(nextMonday);
+    afternoon.setHours(17, 0, 0, 0);
+    await expect(
+      createAppointment({
+        barberId: barber.id,
+        staffId: staff.id,
+        clientId: client.id,
+        serviceId: service.id,
+        startTime: afternoon,
+        endTime: new Date(afternoon.getTime() + service.durationMinutes * 60 * 1000),
+      })
+    ).resolves.toBeTruthy();
+
+    const gap = new Date(nextMonday);
+    gap.setHours(14, 0, 0, 0);
+    await expect(
+      createAppointment({
+        barberId: barber.id,
+        staffId: staff.id,
+        clientId: client.id,
+        serviceId: service.id,
+        startTime: gap,
+        endTime: new Date(gap.getTime() + service.durationMinutes * 60 * 1000),
+      })
+    ).rejects.toBeInstanceOf(OutsideWorkingHoursError);
+  });
 });
 
 describeDb("setAppointmentStatus", () => {

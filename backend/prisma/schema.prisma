@@ -80,8 +80,10 @@ model Staff {
   appointments Appointment[]
 }
 
-/// One shift per day of week for a Staff member. A day with no row is
-/// treated as closed. dayOfWeek follows JS's Date#getDay(): 0=Sunday..6=Saturday.
+/// One shift for a Staff member on a given day of week. A day can have
+/// several non-overlapping shifts (split schedule, e.g. 09:30-13:30 and
+/// 16:00-20:00). A day with no rows is treated as closed. dayOfWeek follows
+/// JS's Date#getDay(): 0=Sunday..6=Saturday.
 model StaffWorkingHours {
   id      String @id @default(cuid())
   staffId String
@@ -93,7 +95,7 @@ model StaffWorkingHours {
   /// Minutes since midnight, e.g. 18:00 = 1080
   endMinute   Int
 
-  @@unique([staffId, dayOfWeek])
+  @@index([staffId, dayOfWeek])
 }
 
 model NotificationSettings {

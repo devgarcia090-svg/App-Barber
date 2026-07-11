@@ -13,18 +13,22 @@ function timeToMinutes(time: string): number | null {
   return h * 60 + m;
 }
 
-interface DaySchedule {
-  open: boolean;
+interface Shift {
   start: string;
   end: string;
 }
 
+interface DaySchedule {
+  open: boolean;
+  shifts: Shift[];
+}
+
 function scheduleFromWorkingHours(workingHours: WorkingHourRow[]): DaySchedule[] {
   return Array.from({ length: 7 }, (_, dayOfWeek) => {
-    const row = workingHours.find((w) => w.dayOfWeek === dayOfWeek);
-    return row
-      ? { open: true, start: minutesToTimeLabel(row.startMinute), end: minutesToTimeLabel(row.endMinute) }
-      : { open: false, start: "09:00", end: "20:00" };
+    const rows = workingHours.filter((w) => w.dayOfWeek === dayOfWeek).sort((a, b) => a.startMinute - b.startMinute);
+    return rows.length > 0
+      ? { open: true, shifts: rows.map((r) => ({ start: minutesToTimeLabel(r.startMinute), end: minutesToTimeLabel(r.endMinute) })) }
+      : { open: false, shifts: [{ start: "09:00", end: "13:00" }] };
   });
 }
 
@@ -36,21 +40,50 @@ function WorkingHoursEditor({ staffMember }: { staffMember: Staff }) {
     setSchedule((prev) => prev.map((d, idx) => (idx === i ? { ...d, ...patch } : d)));
   }
 
+  function updateShift(dayIndex: number, shiftIndex: number, patch: Partial<Shift>) {
+    setSchedule((prev) =>
+      prev.map((d, i) => (i === dayIndex ? { ...d, shifts: d.shifts.map((s, j) => (j === shiftIndex ? { ...s, ...patch } : s)) } : d))
+    );
+  }
+
+  function addShift(dayIndex: number) {
+    setSchedule((prev) =>
+      prev.map((d, i) => (i === dayIndex ? { ...d, shifts: [...d.shifts, { start: "16:00", end: "20:00" }] } : d))
+    );
+  }
+
+  function removeShift(dayIndex: number, shiftIndex: number) {
+    setSchedule((prev) => prev.map((d, i) => (i === dayIndex ? { ...d, shifts: d.shifts.filter((_, j) => j !== shiftIndex) } : d)));
+  }
+
   async function save() {
     setSaving(true);
     try {
       const rows: WorkingHourRow[] = [];
-      for (let i = 0; i < schedule.length; i++) {
-        const day = schedule[i];
+      for (let dayOfWeek = 0; dayOfWeek < schedule.length; dayOfWeek++) {
+        const day = schedule[dayOfWeek];
         if (!day.open) continue;
-        const startMinute = timeToMinutes(day.start);
-        const endMinute = timeToMinutes(day.end);
-        if (startMinute === null || endMinute === null || endMinute <= startMinute) {
-          Alert.alert("Horario inválido", `Revisa el horario de ${DAY_NAMES[i]} (formato HH:MM, hora fin tras hora inicio)`);
-          setSaving(false);
-          return;
+
+        const parsed: { startMinute: number; endMinute: number }[] = [];
+        for (const shift of day.shifts) {
+          const startMinute = timeToMinutes(shift.start);
+          const endMinute = timeToMinutes(shift.end);
+          if (startMinute === null || endMinute === null || endMinute <= startMinute) {
+            Alert.alert("Horario inválido", `Revisa un turno de ${DAY_NAMES[dayOfWeek]} (formato HH:MM, hora fin tras hora inicio)`);
+            setSaving(false);
+            return;
+          }
+          parsed.push({ startMinute, endMinute });
         }
-        rows.push({ dayOfWeek: i, startMinute, endMinute });
+        parsed.sort((a, b) => a.startMinute - b.startMinute);
+        for (let i = 1; i < parsed.length; i++) {
+          if (parsed[i].startMinute < parsed[i - 1].endMinute) {
+            Alert.alert("Horario inválido", `Los turnos de ${DAY_NAMES[dayOfWeek]} se solapan`);
+            setSaving(false);
+            return;
+          }
+        }
+        rows.push(...parsed.map((s) => ({ dayOfWeek, ...s })));
       }
       await api.setWorkingHours(staffMember.id, rows);
       Alert.alert("Guardado", "Horario actualizado");
@@ -62,23 +95,47 @@ function WorkingHoursEditor({ staffMember }: { staffMember: Staff }) {
   }
 
   return (
-    <View style={{ gap: 10, marginTop: 12 }}>
-      {schedule.map((day, i) => (
-        <View key={i} style={styles.dayRow}>
+    <View style={{ gap: 12, marginTop: 12 }}>
+      {schedule.map((day, dayIndex) => (
+        <View key={dayIndex} style={styles.dayRow}>
           <View style={styles.dayToggle}>
             <Switch
               value={day.open}
-              onValueChange={(v) => updateDay(i, { open: v })}
+              onValueChange={(v) => updateDay(dayIndex, { open: v })}
               trackColor={{ true: colors.goldDark, false: colors.border }}
               thumbColor={day.open ? colors.gold : colors.muted}
             />
-            <Text style={[styles.dayName, day.open && { color: colors.text }]}>{DAY_NAMES[i]}</Text>
+            <Text style={[styles.dayName, day.open && { color: colors.text }]}>{DAY_NAMES[dayIndex]}</Text>
           </View>
           {day.open && (
-            <View style={styles.timeRow}>
-              <TextInput style={styles.timeInput} value={day.start} onChangeText={(t) => updateDay(i, { start: t })} placeholder="09:00" placeholderTextColor={colors.faint} />
-              <Text style={{ color: colors.muted }}>–</Text>
-              <TextInput style={styles.timeInput} value={day.end} onChangeText={(t) => updateDay(i, { end: t })} placeholder="20:00" placeholderTextColor={colors.faint} />
+            <View style={{ gap: 8, marginLeft: 56 }}>
+              {day.shifts.map((shift, shiftIndex) => (
+                <View key={shiftIndex} style={styles.timeRow}>
+                  <TextInput
+                    style={styles.timeInput}
+                    value={shift.start}
+                    onChangeText={(t) => updateShift(dayIndex, shiftIndex, { start: t })}
+                    placeholder="09:00"
+                    placeholderTextColor={colors.faint}
+                  />
+                  <Text style={{ color: colors.muted }}>–</Text>
+                  <TextInput
+                    style={styles.timeInput}
+                    value={shift.end}
+                    onChangeText={(t) => updateShift(dayIndex, shiftIndex, { end: t })}
+                    placeholder="20:00"
+                    placeholderTextColor={colors.faint}
+                  />
+                  {day.shifts.length > 1 && (
+                    <Pressable style={styles.removeBtn} onPress={() => removeShift(dayIndex, shiftIndex)}>
+                      <Text style={{ color: colors.red, fontWeight: "700" }}>✕</Text>
+                    </Pressable>
+                  )}
+                </View>
+              ))}
+              <Pressable style={styles.addShiftBtn} onPress={() => addShift(dayIndex)}>
+                <Text style={styles.addShiftText}>+ Añadir turno</Text>
+              </Pressable>
             </View>
           )}
         </View>
@@ -119,7 +176,9 @@ export function StaffScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 16, gap: 14 }}>
-      <Text style={styles.subtitle}>Cada barbero tiene su propia agenda. Su horario define qué huecos se pueden reservar.</Text>
+      <Text style={styles.subtitle}>
+        Cada barbero tiene su propia agenda. Puedes añadir varios turnos el mismo día (mañana y tarde) para horario partido.
+      </Text>
 
       <View style={styles.form}>
         <Text style={styles.label}>NOMBRE</Text>
@@ -199,7 +258,7 @@ const styles = StyleSheet.create({
   dayRow: { gap: 6 },
   dayToggle: { flexDirection: "row", alignItems: "center", gap: 10 },
   dayName: { fontSize: 14, color: colors.muted },
-  timeRow: { flexDirection: "row", alignItems: "center", gap: 8, marginLeft: 56 },
+  timeRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   timeInput: {
     borderWidth: 1,
     borderColor: colors.border,
@@ -210,4 +269,23 @@ const styles = StyleSheet.create({
     color: colors.text,
     textAlign: "center",
   },
+  removeBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addShiftBtn: {
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: colors.goldBorder,
+    backgroundColor: colors.goldSoft,
+    borderRadius: radius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  addShiftText: { color: colors.gold, fontSize: 12, fontWeight: "700" },
 });

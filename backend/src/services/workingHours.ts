@@ -9,15 +9,16 @@ function minutesSinceMidnight(date: Date): number {
 }
 
 /** Whether [start, end) falls entirely within one of the staff's configured
- * shifts for that day of week. Shifts spanning midnight aren't supported. */
+ * shifts for that day of week (a day may have several, e.g. a split
+ * morning/afternoon schedule). Shifts spanning midnight aren't supported. */
 export function isWithinWorkingHours(schedule: WorkingHoursRow[], start: Date, end: Date): boolean {
   if (start.toDateString() !== end.toDateString()) return false;
 
   const dayOfWeek = start.getDay();
-  const shift = schedule.find((row) => row.dayOfWeek === dayOfWeek);
-  if (!shift) return false;
-
   const startMinute = minutesSinceMidnight(start);
   const endMinute = minutesSinceMidnight(end);
-  return startMinute >= shift.startMinute && endMinute <= shift.endMinute;
+
+  return schedule.some(
+    (shift) => shift.dayOfWeek === dayOfWeek && startMinute >= shift.startMinute && endMinute <= shift.endMinute
+  );
 }

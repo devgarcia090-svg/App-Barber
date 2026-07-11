@@ -11,6 +11,7 @@ import { StaffPage } from "./pages/StaffPage";
 import { ServicesPage } from "./pages/ServicesPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { PublicBookingPage } from "./pages/PublicBookingPage";
+import { PrivacyPage, TermsPage } from "./pages/LegalPages";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { barber, loading } = useAuth();
@@ -25,6 +26,8 @@ function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/registro" element={<RegisterPage />} />
       <Route path="/reserva/:slug" element={<PublicBookingPage />} />
+      <Route path="/privacidad" element={<PrivacyPage />} />
+      <Route path="/terminos" element={<TermsPage />} />
       <Route
         element={
           <RequireAuth>

@@ -1,8 +1,8 @@
 # Legal y privacidad para App Store / Play Store
 
 Guía para superar la revisión de las tiendas. La política de privacidad y los términos ya están dentro de
-la web (rutas `/privacidad` y `/terminos`), así que una vez despliegues la web en Netlify tendrás las URLs
-públicas que piden las tiendas.
+la web (rutas `/privacidad` y `/terminos`), así que una vez despliegues la web en Cloudflare Pages tendrás
+las URLs públicas que piden las tiendas.
 
 ## 1. Rellena estos campos antes de publicar
 
@@ -14,11 +14,12 @@ En `web/src/pages/LegalPages.tsx`, sustituye los corchetes por los datos reales 
 - `[email de contacto]` (aparece varias veces)
 
 Vuelve a desplegar la web tras editarlos. La URL de tu política será
-`https://TU-SITIO.netlify.app/privacidad` y la de términos `https://TU-SITIO.netlify.app/terminos`.
+`https://TU-SITIO.pages.dev/privacidad` y la de términos `https://TU-SITIO.pages.dev/terminos` (o tu dominio
+propio en Cloudflare).
 
 ## 2. URLs y datos que piden las fichas de la tienda
 
-- **Política de privacidad (obligatoria en ambas):** `https://TU-SITIO.netlify.app/privacidad`
+- **Política de privacidad (obligatoria en ambas):** `https://TU-SITIO.pages.dev/privacidad`
 - **Email de soporte:** el email de contacto del negocio.
 - **Eliminación de cuenta:** ya está dentro de la app (cliente: Perfil → «Eliminar cuenta»; dueño: Ajustes).
   - Apple (guía 5.1.1(v)): cumplido, es in-app.

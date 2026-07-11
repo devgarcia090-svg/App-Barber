@@ -13,7 +13,7 @@ clave pública (anon).
 
 ```
 supabase/   Migraciones SQL (esquema + RLS + funciones RPC + recordatorios) y seed
-web/        Panel del barbero (React + Vite) — se despliega gratis en Netlify
+web/        Panel del barbero (React + Vite) — se despliega gratis en Cloudflare Pages
 mobile/     App Expo/React Native — dos roles: el barbero gestiona; el cliente reserva
 ```
 
@@ -60,13 +60,22 @@ npm install
 npm run dev             # http://localhost:5173
 ```
 
-### Desplegar la web en Netlify (gratis)
+### Desplegar la web en Cloudflare Pages (gratis)
 
-El repo trae la config lista (`netlify.toml` + `web/public/_redirects` para el fallback de SPA). En
-Netlify: **Add new site → Import an existing project**, elige el repo (deja vacío "Base directory"), y en
-**Environment variables** pon `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` y `VITE_BUSINESS_SLUG` con los
-valores de tu proyecto Supabase. El enlace de reserva pública será
-`https://TU-SITIO.netlify.app/reserva/oficina-del-barbero`.
+En el panel de Cloudflare: **Workers & Pages → Create → Pages → Connect to Git**, elige este repositorio y
+configura el build:
+
+- **Root directory (advanced):** `web`  (es un monorepo)
+- **Framework preset:** Vite
+- **Build command:** `npm run build`
+- **Build output directory:** `dist`
+- **Environment variables:** `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_BUSINESS_SLUG` con los
+  valores de tu proyecto Supabase.
+
+El fichero `web/public/_redirects` (`/* /index.html 200`) ya está en el repo; Cloudflare Pages lo usa para
+el fallback de SPA, así que las rutas como `/reserva/...` o `/privacidad` funcionan al recargar o entrar
+directo. El enlace de reserva pública será `https://TU-SITIO.pages.dev/reserva/oficina-del-barbero` (o tu
+dominio propio si lo conectas en Cloudflare).
 
 ## App móvil (Expo)
 

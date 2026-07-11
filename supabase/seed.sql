@@ -7,7 +7,10 @@
 INSERT INTO "Barber"("id","businessName","slug","ownerName","email","phone")
 VALUES ('biz_demo', 'Oficina del Barbero', 'oficina-del-barbero', 'Carlos', 'carlos@barberia-demo.com', '+34698923061');
 
-INSERT INTO "NotificationSettings"("barberId") VALUES ('biz_demo');
+-- Push is the free default channel; email/WhatsApp/SMS need a paid HTTP
+-- provider, so they're off until the owner wires one up.
+INSERT INTO "NotificationSettings"("barberId","emailEnabled","whatsappEnabled","smsEnabled")
+VALUES ('biz_demo', false, false, false);
 
 INSERT INTO "Staff"("id","barberId","name","color") VALUES
   ('staff_samuel', 'biz_demo', 'Samuel', '#D6A756'),

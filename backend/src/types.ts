@@ -23,3 +23,8 @@ export interface AuthTokenPayload {
   barberId: string;
   email: string;
 }
+
+export interface ClientAuthTokenPayload {
+  clientId: string;
+  barberId: string;
+}

@@ -85,8 +85,8 @@ export function generateDaySlots(
   busyAppointments: { startTime: string; endTime: string; clientName?: string }[]
 ): Slot[] {
   const dayOfWeek = new Date(`${dateStr}T00:00:00`).getDay();
-  const shift = workingHours.find((w) => w.dayOfWeek === dayOfWeek);
-  if (!shift) return [];
+  const shifts = workingHours.filter((w) => w.dayOfWeek === dayOfWeek);
+  if (shifts.length === 0) return [];
 
   const busyRanges = busyAppointments.map((b) => ({
     start: new Date(b.startTime).getTime(),
@@ -95,18 +95,20 @@ export function generateDaySlots(
   }));
 
   const slots: Slot[] = [];
-  for (let start = shift.startMinute; start + serviceDurationMinutes <= shift.endMinute; start += SLOT_GRANULARITY_MINUTES) {
-    const slotStart = new Date(`${dateStr}T00:00:00`);
-    slotStart.setMinutes(start);
-    const slotEnd = new Date(slotStart.getTime() + serviceDurationMinutes * 60 * 1000);
+  for (const shift of shifts) {
+    for (let start = shift.startMinute; start + serviceDurationMinutes <= shift.endMinute; start += SLOT_GRANULARITY_MINUTES) {
+      const slotStart = new Date(`${dateStr}T00:00:00`);
+      slotStart.setMinutes(start);
+      const slotEnd = new Date(slotStart.getTime() + serviceDurationMinutes * 60 * 1000);
 
-    const overlapping = busyRanges.find((b) => slotStart.getTime() < b.end && slotEnd.getTime() > b.start);
-    slots.push({
-      startMinute: start,
-      label: minutesToTimeLabel(start),
-      available: !overlapping,
-      busyClientName: overlapping?.clientName,
-    });
+      const overlapping = busyRanges.find((b) => slotStart.getTime() < b.end && slotEnd.getTime() > b.start);
+      slots.push({
+        startMinute: start,
+        label: minutesToTimeLabel(start),
+        available: !overlapping,
+        busyClientName: overlapping?.clientName,
+      });
+    }
   }
   return slots;
 }

@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma";
 import { createEmailProvider, createMessageProvider } from "./providers";
+import { sendExpoPush } from "./push";
 import {
   buildBarberPrewarningMessage,
   buildBarberPrewarningSubject,
@@ -54,6 +55,9 @@ export async function dispatchReminder(reminderId: string): Promise<boolean> {
     if (reminder.kind === "CLIENT_REMINDER") {
       const message = buildClientReminderMessage(appointment, client, service, barber);
       await sendOnChannel(reminder.channel, client.email, client.phone, buildClientReminderSubject(barber), message);
+      if (client.pushToken) {
+        await sendExpoPush(client.pushToken, buildClientReminderSubject(barber), message).catch(() => {});
+      }
     } else {
       const message = buildBarberPrewarningMessage(appointment, client, service);
       await sendOnChannel(reminder.channel, barber.email, barber.phone, buildBarberPrewarningSubject(), message);

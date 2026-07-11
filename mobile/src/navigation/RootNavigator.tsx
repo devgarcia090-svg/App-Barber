@@ -5,8 +5,14 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../context/AuthContext";
 import { colors } from "../theme";
+import { RoleSelectScreen } from "../screens/RoleSelectScreen";
 import { LoginScreen } from "../screens/LoginScreen";
 import { RegisterScreen } from "../screens/RegisterScreen";
+import { ClientLoginScreen } from "../screens/ClientLoginScreen";
+import { ClientRegisterScreen } from "../screens/ClientRegisterScreen";
+import { BookScreen } from "../screens/BookScreen";
+import { MyAppointmentsScreen } from "../screens/MyAppointmentsScreen";
+import { ClientProfileScreen } from "../screens/ClientProfileScreen";
 import { AgendaScreen } from "../screens/AgendaScreen";
 import { NewAppointmentScreen } from "../screens/NewAppointmentScreen";
 import { ClientsScreen } from "../screens/ClientsScreen";
@@ -17,8 +23,11 @@ import { ServicesScreen } from "../screens/ServicesScreen";
 import { SettingsScreen } from "../screens/SettingsScreen";
 
 export type AuthStackParamList = {
+  RoleSelect: undefined;
   Login: undefined;
   Register: undefined;
+  ClientLogin: undefined;
+  ClientRegister: undefined;
 };
 
 export type RootStackParamList = {
@@ -44,18 +53,54 @@ const navTheme = {
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const Tab = createBottomTabNavigator();
+const ClientTab = createBottomTabNavigator();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 
 function AuthNavigator() {
   return (
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
+      <AuthStack.Screen name="RoleSelect" component={RoleSelectScreen} />
       <AuthStack.Screen name="Login" component={LoginScreen} />
       <AuthStack.Screen
         name="Register"
         component={RegisterScreen}
         options={{ headerShown: true, title: "Crear negocio", headerTintColor: colors.gold, headerTitleStyle: { color: colors.text } }}
       />
+      <AuthStack.Screen name="ClientLogin" component={ClientLoginScreen} />
+      <AuthStack.Screen
+        name="ClientRegister"
+        component={ClientRegisterScreen}
+        options={{ headerShown: true, title: "Crear cuenta", headerTintColor: colors.gold, headerTitleStyle: { color: colors.text } }}
+      />
     </AuthStack.Navigator>
+  );
+}
+
+const CLIENT_TAB_ICONS: Record<string, { active: React.ComponentProps<typeof Ionicons>["name"]; inactive: React.ComponentProps<typeof Ionicons>["name"] }> = {
+  Reservar: { active: "calendar", inactive: "calendar-outline" },
+  MisCitas: { active: "list", inactive: "list-outline" },
+  Perfil: { active: "person", inactive: "person-outline" },
+};
+
+function ClientNavigator() {
+  return (
+    <ClientTab.Navigator
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarActiveTintColor: colors.gold,
+        tabBarInactiveTintColor: colors.faint,
+        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
+        tabBarLabelStyle: { fontSize: 10.5, fontWeight: "600" },
+        tabBarIcon: ({ focused, color, size }) => {
+          const icons = CLIENT_TAB_ICONS[route.name] ?? CLIENT_TAB_ICONS.Reservar;
+          return <Ionicons name={focused ? icons.active : icons.inactive} size={size} color={color} />;
+        },
+      })}
+    >
+      <ClientTab.Screen name="Reservar" component={BookScreen} />
+      <ClientTab.Screen name="MisCitas" component={MyAppointmentsScreen} options={{ title: "Mis citas" }} />
+      <ClientTab.Screen name="Perfil" component={ClientProfileScreen} />
+    </ClientTab.Navigator>
   );
 }
 
@@ -111,7 +156,7 @@ function MainNavigator() {
 }
 
 export function RootNavigator() {
-  const { barber, loading } = useAuth();
+  const { barber, client, loading } = useAuth();
 
   if (loading) {
     return (
@@ -121,5 +166,9 @@ export function RootNavigator() {
     );
   }
 
-  return <NavigationContainer theme={navTheme}>{barber ? <MainNavigator /> : <AuthNavigator />}</NavigationContainer>;
+  return (
+    <NavigationContainer theme={navTheme}>
+      {barber ? <MainNavigator /> : client ? <ClientNavigator /> : <AuthNavigator />}
+    </NavigationContainer>
+  );
 }

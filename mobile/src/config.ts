@@ -10,3 +10,7 @@ function guessLanApiUrl(): string | null {
 // Set EXPO_PUBLIC_API_URL in mobile/.env to point at your backend (required
 // when using `expo start --tunnel`, since the LAN-IP guess won't work).
 export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? guessLanApiUrl() ?? "http://localhost:4000";
+
+// This app is single-tenant: it only ever books appointments for one
+// business, identified by its public slug (see backend's Barber.slug).
+export const BUSINESS_SLUG = process.env.EXPO_PUBLIC_BUSINESS_SLUG ?? "oficina-del-barbero";

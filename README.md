@@ -9,12 +9,14 @@ antes de cada cita.
 
 ```
 backend/   API (Express + TypeScript + Prisma + SQLite)
-web/       Panel web para el barbero (React + Vite) — pensado para reservar desde el ordenador
-mobile/    App móvil (Expo / React Native) — mismo panel, para usar desde el móvil con Expo Go
+web/       Panel web para el barbero (React + Vite) — pensado para gestionar el negocio desde el ordenador
+mobile/    App móvil (Expo / React Native) — dos roles: el barbero gestiona su agenda, y el cliente
+           final crea su cuenta y reserva sus propias citas cuando quiera
 ```
 
-Los tres consumen la misma API. No hay una app para el cliente final: el barbero (o quien atienda el
-teléfono) es quien crea las citas, poniendo solo el nombre y el teléfono de quien llama.
+Los tres consumen la misma API. La app móvil sirve tanto al barbero (gestión) como al cliente final
+(reserva de citas con cuenta propia); el cliente también puede reservar sin cuenta desde la web pública
+si el negocio prefiere atender así.
 
 ## Funcionalidades principales
 
@@ -29,8 +31,12 @@ teléfono) es quien crea las citas, poniendo solo el nombre y el teléfono de qu
 - **Pre-aviso al barbero**: si un cliente con historial de faltas reserva otra cita, el barbero ve un
   aviso destacado en la agenda y al crear la cita, con recomendación (pedir confirmación extra, señal, etc).
 - **Recordatorios automáticos**: al cliente se le avisa X horas antes de su cita (configurable, por
-  email/WhatsApp/SMS). Al barbero se le puede avisar también antes de citas con clientes de riesgo
-  (por ejemplo 24h y 1h antes), para que pueda reconfirmar personalmente.
+  email/WhatsApp/SMS, y por notificación push si tiene la app y la ha activado). Al barbero se le puede
+  avisar también antes de citas con clientes de riesgo (por ejemplo 24h y 1h antes), para que pueda
+  reconfirmar personalmente.
+- **App del cliente**: el cliente crea su propia cuenta (teléfono + contraseña) en la misma app móvil,
+  elige servicio, barbero (o "cualquiera") y hora, reserva, y desde "Mis citas" puede ver su historial
+  y cancelar. Puede eliminar su cuenta en cualquier momento desde su perfil.
 
 ## Backend
 
@@ -103,9 +109,10 @@ Para probarla en tu móvil con **Expo Go**:
 
 Requisitos que ya cumple la app y los que quedan pendientes antes de enviarla a revisión:
 
-- ✅ **Eliminación de cuenta dentro de la app** (exigido por Apple, guideline 5.1.1): en la pestaña
-  "Más" → "Eliminar cuenta" (pide la contraseña y borra el negocio completo en cascada). También
-  disponible en el panel web (Ajustes).
+- ✅ **Eliminación de cuenta dentro de la app** (exigido por Apple, guideline 5.1.1): tanto para el
+  barbero (pestaña "Más" → "Eliminar cuenta", borra el negocio completo en cascada; también disponible
+  en el panel web) como para el cliente (pestaña "Perfil" → "Eliminar cuenta", borra su cuenta e
+  historial de citas).
 - ✅ Identificadores de app configurados (`com.oficinadelbarbero.app` en iOS y Android).
 - ⬜ **Política de privacidad**: ambas tiendas exigen una URL pública con la política de privacidad
   (qué datos se guardan —nombres y teléfonos de clientes, citas—, con qué fin, y cómo ejercer los
@@ -123,7 +130,8 @@ Requisitos que ya cumple la app y los que quedan pendientes antes de enviarla a 
 - `Staff`: cada barbero individual del negocio, con su `StaffWorkingHours` (horario semanal).
 - `Service`: servicios del negocio (nombre, duración, precio).
 - `Client`: clientes del negocio, con contadores de fiabilidad (`noShowCount`, `lateCancelCount`,
-  `reliabilityStatus`).
+  `reliabilityStatus`). Puede tener cuenta propia (`passwordHash`) para reservar desde la app, y un
+  `pushToken` si ha activado las notificaciones.
 - `Appointment`: cita ligada a un `Staff`, `Client` y `Service`.
 - `Reminder`: recordatorios programados (al cliente o de pre-aviso al barbero), con canal y estado de envío.
 - `NotificationSettings`: configuración por negocio de cuándo y cómo avisar (horas antes, umbrales de

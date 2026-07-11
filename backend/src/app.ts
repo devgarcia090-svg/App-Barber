@@ -7,6 +7,7 @@ import { clientsRouter } from "./routes/clients";
 import { appointmentsRouter } from "./routes/appointments";
 import { settingsRouter } from "./routes/settings";
 import { publicRouter } from "./routes/public";
+import { clientRouter } from "./routes/client";
 
 export function createApp() {
   const app = express();
@@ -22,6 +23,7 @@ export function createApp() {
   app.use("/api/appointments", appointmentsRouter);
   app.use("/api/settings", settingsRouter);
   app.use("/api/public", publicRouter);
+  app.use("/api/client", clientRouter);
 
   app.use((_req, res) => res.status(404).json({ error: "Not found" }));
 

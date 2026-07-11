@@ -1,6 +1,9 @@
 import { Router } from "express";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
+import { requireJwtSecret } from "../middleware/auth";
 import { createAppointment, OutsideWorkingHoursError, SlotUnavailableError } from "../services/appointments";
 import { getAvailability } from "../services/availability";
 
@@ -195,3 +198,80 @@ publicRouter.post("/:slug/book", async (req, res) => {
     throw err;
   }
 });
+
+const clientRegisterSchema = z.object({
+  name: z.string().min(1),
+  phone: z.string().min(3),
+  password: z.string().min(8),
+  email: z.string().email().optional(),
+});
+
+publicRouter.post("/:slug/client/register", async (req, res) => {
+  const barber = await prisma.barber.findUnique({ where: { slug: req.params.slug } });
+  if (!barber) {
+    res.status(404).json({ error: "Business not found" });
+    return;
+  }
+  const parsed = clientRegisterSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const { name, phone, password, email } = parsed.data;
+
+  const existing = await prisma.client.findUnique({
+    where: { barberId_phone: { barberId: barber.id, phone } },
+  });
+  if (existing?.passwordHash) {
+    res.status(409).json({ error: "Ya existe una cuenta con este teléfono. Inicia sesión." });
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  const client = existing
+    ? await prisma.client.update({ where: { id: existing.id }, data: { name, email, passwordHash } })
+    : await prisma.client.create({ data: { barberId: barber.id, name, phone, email, passwordHash } });
+
+  const token = signClientToken(client.id, barber.id);
+  res.status(201).json({ token, client: toPublicClient(client) });
+});
+
+const clientLoginSchema = z.object({
+  phone: z.string().min(1),
+  password: z.string().min(1),
+});
+
+publicRouter.post("/:slug/client/login", async (req, res) => {
+  const barber = await prisma.barber.findUnique({ where: { slug: req.params.slug } });
+  if (!barber) {
+    res.status(404).json({ error: "Business not found" });
+    return;
+  }
+  const parsed = clientLoginSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const { phone, password } = parsed.data;
+
+  const client = await prisma.client.findUnique({
+    where: { barberId_phone: { barberId: barber.id, phone } },
+  });
+  if (!client?.passwordHash || !(await bcrypt.compare(password, client.passwordHash))) {
+    res.status(401).json({ error: "Teléfono o contraseña incorrectos" });
+    return;
+  }
+
+  const token = signClientToken(client.id, barber.id);
+  res.json({ token, client: toPublicClient(client) });
+});
+
+function signClientToken(clientId: string, barberId: string): string {
+  const expiresIn = (process.env.JWT_EXPIRES_IN ?? "30d") as jwt.SignOptions["expiresIn"];
+  return jwt.sign({ clientId, barberId }, requireJwtSecret(), { expiresIn });
+}
+
+export function toPublicClient(client: { id: string; name: string; phone: string; email: string | null }) {
+  const { id, name, phone, email } = client;
+  return { id, name, phone, email };
+}

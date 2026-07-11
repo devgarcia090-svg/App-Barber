@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { API_URL } from "./config";
+import { API_URL, BUSINESS_SLUG } from "./config";
 
 export interface Barber {
   id: string;
@@ -8,6 +8,24 @@ export interface Barber {
   ownerName: string;
   email: string;
   phone: string | null;
+}
+
+export interface ClientAccount {
+  id: string;
+  name: string;
+  phone: string;
+  email: string | null;
+}
+
+export interface PublicBusiness {
+  barber: { businessName: string; slug: string; phone: string | null };
+  services: Service[];
+  staff: { id: string; name: string; color: string }[];
+}
+
+export interface PublicSlot {
+  startMinute: number;
+  staffIds: string[];
 }
 
 export type ReliabilityStatus = "RELIABLE" | "WATCH" | "RISKY";
@@ -169,4 +187,31 @@ export const api = {
   getSettings: () => request<{ settings: NotificationSettings }>("/api/settings"),
   updateSettings: (data: Partial<NotificationSettings>) =>
     request<{ settings: NotificationSettings }>("/api/settings", { method: "PATCH", body: JSON.stringify(data) }),
+
+  getPublicBusiness: () => request<PublicBusiness>(`/api/public/${BUSINESS_SLUG}`),
+  getPublicDaySlots: (serviceId: string, date: string, staffId?: string) => {
+    const qs = new URLSearchParams({ serviceId, date, ...(staffId ? { staffId } : {}) }).toString();
+    return request<{ slots: PublicSlot[] }>(`/api/public/${BUSINESS_SLUG}/day-slots?${qs}`);
+  },
+
+  clientRegister: (data: { name: string; phone: string; password: string; email?: string }) =>
+    request<{ token: string; client: ClientAccount }>(`/api/public/${BUSINESS_SLUG}/client/register`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  clientLogin: (phone: string, password: string) =>
+    request<{ token: string; client: ClientAccount }>(`/api/public/${BUSINESS_SLUG}/client/login`, {
+      method: "POST",
+      body: JSON.stringify({ phone, password }),
+    }),
+  deleteClientAccount: (password: string) =>
+    request<void>("/api/client/account", { method: "DELETE", body: JSON.stringify({ password }) }),
+  registerPushToken: (token: string | null) =>
+    request<void>("/api/client/push-token", { method: "PATCH", body: JSON.stringify({ token }) }),
+
+  getMyAppointments: () => request<{ appointments: Appointment[] }>("/api/client/appointments"),
+  bookAsClient: (data: { staffId: string; serviceId: string; startTime: string; notes?: string }) =>
+    request<{ appointment: Appointment }>("/api/client/appointments", { method: "POST", body: JSON.stringify(data) }),
+  cancelMyAppointment: (id: string) =>
+    request<{ appointment: Appointment }>(`/api/client/appointments/${id}/cancel`, { method: "PATCH" }),
 };

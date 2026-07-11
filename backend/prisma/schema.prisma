@@ -149,6 +149,9 @@ model Client {
   phone String
   email String?
 
+  passwordHash String?
+  pushToken    String?
+
   totalAppointments Int @default(0)
   completedCount    Int @default(0)
   noShowCount       Int @default(0)

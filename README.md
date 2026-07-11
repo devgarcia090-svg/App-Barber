@@ -87,8 +87,8 @@ npx expo start          # escanea el QR con Expo Go
 ```
 
 Como la app habla directamente con Supabase (que ya es una URL pública HTTPS), la APK funciona desde
-cualquier sitio sin montar ningún servidor. Para builds de tienda: `npx eas build` (requiere `eas.json` y
-cuentas de Apple/Google Developer — ver checklist).
+cualquier sitio sin montar ningún servidor. Para generar la APK/IPA de las tiendas, `mobile/eas.json` ya
+está configurado — guía paso a paso en `docs/build-tiendas.md`.
 
 ## Modelo de datos (resumen)
 
@@ -111,7 +111,8 @@ solapes, un trigger de fiabilidad, y `dispatch_due_reminders()` programada por `
 - ⬜ **Política de privacidad**: URL pública obligatoria (nombres/teléfonos de clientes, citas). Alojar una
   página estática.
 - ⬜ **Formularios de privacidad** de App Store Connect ("App Privacy") y Play Console ("Data safety").
-- ⬜ **Builds de producción** con EAS (`npx eas build`) — cuentas de Apple Developer (99 €/año) y Google
+- 🟡 **Builds de producción** con EAS: `mobile/eas.json` listo; falta `eas init` + compilar/enviar (ver
+  `docs/build-tiendas.md`). Requiere cuentas de Apple Developer (99 €/año) y Google
   Play (25 € pago único).
 - ⬜ **Endurecer** antes de abrir al público: revisar límites de tasa en Supabase y confirmar que el seed
   de ejemplo no queda en producción.

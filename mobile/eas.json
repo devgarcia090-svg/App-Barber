@@ -1,0 +1,50 @@
+{
+  "cli": {
+    "version": ">= 12.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://TU-PROYECTO.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "TU_ANON_PUBLIC_KEY",
+        "EXPO_PUBLIC_BUSINESS_SLUG": "oficina-del-barbero"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "autoIncrement": true,
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://TU-PROYECTO.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "TU_ANON_PUBLIC_KEY",
+        "EXPO_PUBLIC_BUSINESS_SLUG": "oficina-del-barbero"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://TU-PROYECTO.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "TU_ANON_PUBLIC_KEY",
+        "EXPO_PUBLIC_BUSINESS_SLUG": "oficina-del-barbero"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "TU_APPLE_ID_EMAIL",
+        "ascAppId": "TU_APP_STORE_CONNECT_APP_ID",
+        "appleTeamId": "TU_APPLE_TEAM_ID"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./play-service-account.json",
+        "track": "internal"
+      }
+    }
+  }
+}

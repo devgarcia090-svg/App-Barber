@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Alert, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../context/AuthContext";
 import { api, ApiError } from "../api";
@@ -27,7 +28,12 @@ export function ClientProfileScreen() {
           Alert.alert("Permiso denegado", "Activa las notificaciones desde los ajustes del teléfono.");
           return;
         }
-        const token = await Notifications.getExpoPushTokenAsync().then((t) => t.data);
+        // In native builds Expo requires the EAS projectId to mint a push token
+        // (it's injected into expoConfig.extra.eas.projectId after `eas init`).
+        const projectId =
+          Constants.expoConfig?.extra?.eas?.projectId ??
+          (Constants as unknown as { easConfig?: { projectId?: string } }).easConfig?.projectId;
+        const token = (await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined)).data;
         await api.registerPushToken(token);
         setPushEnabled(true);
       } else {

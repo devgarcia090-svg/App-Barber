@@ -40,3 +40,11 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# EAS / store signing secrets — NEVER commit these
+play-service-account.json
+*.p8
+*.p12
+*.mobileprovision
+*.keystore
+credentials.json

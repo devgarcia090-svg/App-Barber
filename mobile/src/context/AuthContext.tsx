@@ -1,6 +1,5 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, loadAuthToken, setAuthToken, type Barber, type ClientAccount } from "../api";
+import { api, loadCurrentBarber, loadStoredClient, type Barber, type ClientAccount } from "../api";
 
 interface AuthContextValue {
   barber: Barber | null;
@@ -14,9 +13,6 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-const BARBER_KEY = "barber";
-const CLIENT_KEY = "client";
-const SESSION_KIND_KEY = "sessionKind";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [barber, setBarber] = useState<Barber | null>(null);
@@ -25,64 +21,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     (async () => {
-      const token = await loadAuthToken();
-      const kind = await AsyncStorage.getItem(SESSION_KIND_KEY);
-      if (token && kind === "client") {
-        const stored = await AsyncStorage.getItem(CLIENT_KEY);
-        if (stored) setClient(JSON.parse(stored));
-      } else if (token && kind === "barber") {
-        const stored = await AsyncStorage.getItem(BARBER_KEY);
-        if (stored) setBarber(JSON.parse(stored));
+      const b = await loadCurrentBarber();
+      if (b) {
+        setBarber(b);
+      } else {
+        const c = await loadStoredClient();
+        if (c) setClient(c);
       }
       setLoading(false);
     })();
   }, []);
 
-  async function persistBarber(token: string, barberData: Barber) {
-    await setAuthToken(token);
-    await AsyncStorage.multiSet([
-      [SESSION_KIND_KEY, "barber"],
-      [BARBER_KEY, JSON.stringify(barberData)],
-    ]);
-    await AsyncStorage.removeItem(CLIENT_KEY);
-    setBarber(barberData);
+  async function login(email: string, password: string) {
+    const { barber: b } = await api.login(email, password);
+    setBarber(b);
     setClient(null);
   }
 
-  async function persistClient(token: string, clientData: ClientAccount) {
-    await setAuthToken(token);
-    await AsyncStorage.multiSet([
-      [SESSION_KIND_KEY, "client"],
-      [CLIENT_KEY, JSON.stringify(clientData)],
-    ]);
-    await AsyncStorage.removeItem(BARBER_KEY);
-    setClient(clientData);
-    setBarber(null);
-  }
-
-  async function login(email: string, password: string) {
-    const { token, barber: barberData } = await api.login(email, password);
-    await persistBarber(token, barberData);
-  }
-
   async function register(data: { businessName: string; ownerName: string; email: string; password: string; phone?: string }) {
-    const { token, barber: barberData } = await api.register(data);
-    await persistBarber(token, barberData);
+    const { barber: b } = await api.register(data);
+    setBarber(b);
+    setClient(null);
   }
 
   async function clientLogin(phone: string, password: string) {
-    const { token, client: clientData } = await api.clientLogin(phone, password);
-    await persistClient(token, clientData);
+    const { client: c } = await api.clientLogin(phone, password);
+    setClient(c);
+    setBarber(null);
   }
 
   async function clientRegister(data: { name: string; phone: string; password: string; email?: string }) {
-    const { token, client: clientData } = await api.clientRegister(data);
-    await persistClient(token, clientData);
+    const { client: c } = await api.clientRegister(data);
+    setClient(c);
+    setBarber(null);
   }
 
   async function logout() {
-    await setAuthToken(null);
-    await AsyncStorage.multiRemove([SESSION_KIND_KEY, BARBER_KEY, CLIENT_KEY]);
+    await api.logout();
     setBarber(null);
     setClient(null);
   }

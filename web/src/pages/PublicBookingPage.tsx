@@ -40,7 +40,16 @@ function availabilityBarStyle(freeCount: number, totalCount: number): React.CSSP
 export function PublicBookingPage() {
   const { slug } = useParams<{ slug: string }>();
 
-  const [business, setBusiness] = useState<{ businessName: string; phone: string | null } | null>(null);
+  const [business, setBusiness] = useState<{
+    businessName: string;
+    phone: string | null;
+    address?: string | null;
+    bio?: string | null;
+    instagram?: string | null;
+    loyaltyEnabled?: boolean;
+    loyaltyThreshold?: number;
+    loyaltyReward?: string | null;
+  } | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [staff, setStaff] = useState<PublicStaff[]>([]);
   const [notFound, setNotFound] = useState(false);
@@ -159,12 +168,23 @@ export function PublicBookingPage() {
         </div>
         <div>
           <h1 className="public-title">{business.businessName}</h1>
-          <span className="muted">Llano de Brujas · Murcia</span>
+          <span className="muted">{business.address || "Llano de Brujas · Murcia"}</span>
         </div>
       </header>
 
       {step === 1 && (
         <section>
+          {business.bio && <p className="public-bio">{business.bio}</p>}
+          {business.instagram && (
+            <p className="muted" style={{ marginTop: "-0.4rem" }}>
+              📷 {business.instagram}
+            </p>
+          )}
+          {business.loyaltyEnabled && business.loyaltyThreshold ? (
+            <div className="loyalty-banner">
+              🎁 Tarjeta de fidelización: <b>{business.loyaltyReward || "premio"}</b> al llegar a {business.loyaltyThreshold} visitas.
+            </div>
+          ) : null}
           <h2>Servicios</h2>
           <div className="service-list">
             {services.map((s) => (

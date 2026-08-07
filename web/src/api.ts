@@ -7,6 +7,54 @@ export interface Barber {
   ownerName: string;
   email: string;
   phone: string | null;
+  bio?: string | null;
+  address?: string | null;
+  instagram?: string | null;
+  photoUrl?: string | null;
+  loyaltyEnabled?: boolean;
+  loyaltyThreshold?: number;
+  loyaltyReward?: string | null;
+}
+
+export interface OwnerStats {
+  from: string;
+  to: string;
+  totals: {
+    revenueCents: number;
+    completed: number;
+    noShow: number;
+    cancelled: number;
+    upcoming: number;
+    total: number;
+  };
+  byDay: { date: string; revenueCents: number; completed: number }[];
+  byStaff: { staffId: string; name: string; color: string; revenueCents: number; completed: number }[];
+  topServices: { serviceId: string; name: string; revenueCents: number; completed: number }[];
+}
+
+export interface Invoice {
+  id: string;
+  date: string;
+  clientName: string;
+  clientPhone: string;
+  serviceName: string;
+  staffName: string;
+  priceCents: number;
+}
+
+export interface LoyaltyClient {
+  id: string;
+  name: string;
+  phone: string;
+  completedCount: number;
+  rewardsEarned: number;
+  progress: number;
+  toNext: number;
+}
+
+export interface LoyaltyOverview {
+  threshold: number;
+  clients: LoyaltyClient[];
 }
 
 export type ReliabilityStatus = "RELIABLE" | "WATCH" | "RISKY";
@@ -291,7 +339,21 @@ export const api = {
   async publicGetBusiness(slug: string) {
     const { data, error } = await supabase.rpc("public_business", { p_slug: slug });
     if (error) throw new ApiError(404, "No se encontró el negocio");
-    return data as { barber: { businessName: string; slug: string; phone: string | null }; services: Service[]; staff: { id: string; name: string; color: string }[] };
+    return data as {
+      barber: {
+        businessName: string;
+        slug: string;
+        phone: string | null;
+        address: string | null;
+        bio: string | null;
+        instagram: string | null;
+        loyaltyEnabled: boolean;
+        loyaltyThreshold: number;
+        loyaltyReward: string | null;
+      };
+      services: Service[];
+      staff: { id: string; name: string; color: string }[];
+    };
   },
   async publicGetAvailability(slug: string, p: { serviceId: string; from: string; to: string; staffId?: string }) {
     const { data, error } = await supabase.rpc("public_availability", {
@@ -314,6 +376,29 @@ export const api = {
     });
     if (error) throw new ApiError(422, translateBookingError(error.message));
     return { appointment: data as Appointment };
+  },
+
+  // ---- Facturación + estadísticas (owner) ----
+  async getStats(from: string, to: string) {
+    const { data, error } = await supabase.rpc("owner_stats", { p_from: from, p_to: to });
+    if (error) throw new ApiError(400, error.message);
+    return data as OwnerStats;
+  },
+  async getInvoices(from: string, to: string) {
+    const { data, error } = await supabase.rpc("owner_invoices", { p_from: from, p_to: to });
+    if (error) throw new ApiError(400, error.message);
+    return (data as Invoice[]) ?? [];
+  },
+
+  // ---- Fidelización + perfil (owner) ----
+  async getLoyalty() {
+    const { data, error } = await supabase.rpc("owner_loyalty");
+    if (error) throw new ApiError(400, error.message);
+    return data as LoyaltyOverview;
+  },
+  async updateProfile(d: Partial<Pick<Barber, "businessName" | "phone" | "bio" | "address" | "instagram" | "photoUrl" | "loyaltyEnabled" | "loyaltyThreshold" | "loyaltyReward">>) {
+    const data = wrap(await supabase.from("Barber").update(d).eq("id", barberId).select().single());
+    return data as Barber;
   },
 };
 

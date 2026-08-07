@@ -15,6 +15,8 @@ export function Layout() {
           <NavLink to="/clientes">Clientes</NavLink>
           <NavLink to="/barberos">Barberos</NavLink>
           <NavLink to="/servicios">Servicios</NavLink>
+          <NavLink to="/facturacion">Facturación</NavLink>
+          <NavLink to="/fidelizacion">Fidelización</NavLink>
           <NavLink to="/ajustes">Ajustes</NavLink>
         </nav>
         <button className="btn-ghost" onClick={logout}>

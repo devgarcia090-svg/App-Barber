@@ -9,6 +9,8 @@ import { ClientsPage } from "./pages/ClientsPage";
 import { ClientDetailPage } from "./pages/ClientDetailPage";
 import { StaffPage } from "./pages/StaffPage";
 import { ServicesPage } from "./pages/ServicesPage";
+import { IngresosPage } from "./pages/IngresosPage";
+import { FidelizacionPage } from "./pages/FidelizacionPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { PublicBookingPage } from "./pages/PublicBookingPage";
 import { PrivacyPage, TermsPage } from "./pages/LegalPages";
@@ -41,6 +43,8 @@ function AppRoutes() {
         <Route path="/clientes/:id" element={<ClientDetailPage />} />
         <Route path="/barberos" element={<StaffPage />} />
         <Route path="/servicios" element={<ServicesPage />} />
+        <Route path="/facturacion" element={<IngresosPage />} />
+        <Route path="/fidelizacion" element={<FidelizacionPage />} />
         <Route path="/ajustes" element={<SettingsPage />} />
       </Route>
     </Routes>

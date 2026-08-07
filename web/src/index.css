@@ -958,3 +958,101 @@ input[type="checkbox"] {
   border-top: 1px solid var(--border);
   font-size: 0.9rem;
 }
+
+/* ---- Facturación / estadísticas / fidelización (fase 15) ---- */
+.range-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 1.4rem;
+}
+.range-presets { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.range-inputs { display: flex; gap: 0.75rem; }
+.range-inputs label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8rem; color: var(--muted); }
+.range-inputs input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--text);
+  padding: 0.4rem 0.55rem;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.9rem;
+  margin-bottom: 1.6rem;
+}
+.kpi {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.kpi-strong {
+  background: var(--gold-soft);
+  border-color: var(--gold-border);
+}
+.kpi-label { font-size: 0.8rem; color: var(--muted); }
+.kpi-value { font-size: 1.7rem; font-weight: 800; }
+.kpi-value small { font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.2rem 1.3rem;
+  margin-bottom: 1.4rem;
+}
+.panel h2 { margin-top: 0; font-size: 1.05rem; }
+.two-col {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.4rem;
+}
+
+.bar-chart {
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-end;
+  height: 180px;
+  overflow-x: auto;
+  padding-top: 0.5rem;
+}
+.bar-col { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; min-width: 34px; height: 100%; }
+.bar-track { flex: 1; width: 100%; display: flex; align-items: flex-end; }
+.bar-fill {
+  width: 100%;
+  background: linear-gradient(180deg, var(--gold), var(--gold-dark));
+  border-radius: 6px 6px 0 0;
+  min-height: 3px;
+}
+.bar-label { font-size: 0.65rem; color: var(--muted); white-space: nowrap; }
+
+.qr-box { display: flex; flex-direction: column; align-items: center; gap: 0.8rem; }
+.qr-box img { background: #fff; border-radius: 12px; padding: 10px; }
+.qr-url { font-size: 0.75rem; color: var(--muted); word-break: break-all; text-align: center; }
+.qr-actions { display: flex; gap: 0.5rem; }
+
+.loyalty-bar {
+  height: 8px;
+  background: var(--surface-2);
+  border-radius: 5px;
+  overflow: hidden;
+  margin-bottom: 0.2rem;
+}
+.loyalty-fill { height: 100%; background: var(--gold); border-radius: 5px; }
+.public-bio { color: var(--text); line-height: 1.55; margin: 0 0 0.6rem; }
+.loyalty-banner {
+  background: var(--gold-soft);
+  border: 1px solid var(--gold-border);
+  border-radius: 12px;
+  padding: 0.7rem 0.9rem;
+  font-size: 0.9rem;
+  margin: 0.9rem 0 1.3rem;
+}

@@ -117,7 +117,7 @@ export function AgendaPage() {
 
       <div className="appointment-list">
         {appointments.map((appt) => (
-          <div key={appt.id} className="appointment-card">
+          <div key={appt.id} className={`appointment-card appt-${appt.status.toLowerCase()}`}>
             <div className="appointment-time">
               <strong>{formatTime(appt.startTime)}</strong>
               <span className="muted"> - {formatTime(appt.endTime)}</span>

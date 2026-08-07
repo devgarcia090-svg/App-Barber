@@ -27,6 +27,11 @@ function payLabel(m: string | null): string {
   return "—";
 }
 
+// Etiqueta compacta de importe para encima de las barras (sin decimales).
+function eurosShort(cents: number): string {
+  return `${Math.round(cents / 100)} €`;
+}
+
 export function IngresosPage() {
   const [range, setRange] = useState(monthRange(0));
   const [stats, setStats] = useState<OwnerStats | null>(null);
@@ -147,15 +152,19 @@ export function IngresosPage() {
           </div>
 
           <section className="panel">
-            <h2>Ingresos por día</h2>
+            <div className="panel-head">
+              <h2>Ingresos por día</h2>
+              <span className="panel-meta">máx. {euros(maxDay)}</span>
+            </div>
             {stats.byDay.length === 0 ? (
               <p className="muted">Sin ingresos en este periodo.</p>
             ) : (
               <div className="bar-chart">
                 {stats.byDay.map((d) => (
-                  <div className="bar-col" key={d.date} title={`${formatDay(d.date)}: ${euros(d.revenueCents)}`}>
+                  <div className="bar-col" key={d.date} title={`${formatDay(d.date)}: ${euros(d.revenueCents)} · ${d.completed} citas`}>
+                    <span className="bar-value">{eurosShort(d.revenueCents)}</span>
                     <div className="bar-track">
-                      <div className="bar-fill" style={{ height: `${(d.revenueCents / maxDay) * 100}%` }} />
+                      <div className="bar-fill" style={{ height: `${Math.max(2, (d.revenueCents / maxDay) * 100)}%` }} />
                     </div>
                     <span className="bar-label">{formatDay(d.date)}</span>
                   </div>

@@ -57,7 +57,7 @@ export function LoginScreen({ navigation }: Props) {
             onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
-            placeholder="tu@negocio.com"
+            placeholder="tu@email.com"
             placeholderTextColor={colors.faint}
           />
         </View>
@@ -84,9 +84,9 @@ export function LoginScreen({ navigation }: Props) {
         </Pressable>
       </View>
 
-      <Pressable onPress={() => navigation.navigate("Register")}>
+      <Pressable onPress={() => navigation.navigate("ClientRegister")}>
         <Text style={styles.link}>
-          ¿No tienes cuenta? <Text style={styles.linkAccent}>Regístrate</Text>
+          ¿Primera vez? <Text style={styles.linkAccent}>Crea tu cuenta de cliente</Text>
         </Text>
       </Pressable>
     </KeyboardAvoidingView>

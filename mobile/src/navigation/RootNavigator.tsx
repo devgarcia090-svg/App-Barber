@@ -5,10 +5,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../context/AuthContext";
 import { colors } from "../theme";
-import { RoleSelectScreen } from "../screens/RoleSelectScreen";
 import { LoginScreen } from "../screens/LoginScreen";
-import { RegisterScreen } from "../screens/RegisterScreen";
-import { ClientLoginScreen } from "../screens/ClientLoginScreen";
 import { ClientRegisterScreen } from "../screens/ClientRegisterScreen";
 import { BookScreen } from "../screens/BookScreen";
 import { MyAppointmentsScreen } from "../screens/MyAppointmentsScreen";
@@ -23,10 +20,7 @@ import { ServicesScreen } from "../screens/ServicesScreen";
 import { SettingsScreen } from "../screens/SettingsScreen";
 
 export type AuthStackParamList = {
-  RoleSelect: undefined;
   Login: undefined;
-  Register: undefined;
-  ClientLogin: undefined;
   ClientRegister: undefined;
 };
 
@@ -59,14 +53,7 @@ const RootStack = createNativeStackNavigator<RootStackParamList>();
 function AuthNavigator() {
   return (
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
-      <AuthStack.Screen name="RoleSelect" component={RoleSelectScreen} />
       <AuthStack.Screen name="Login" component={LoginScreen} />
-      <AuthStack.Screen
-        name="Register"
-        component={RegisterScreen}
-        options={{ headerShown: true, title: "Crear negocio", headerTintColor: colors.gold, headerTitleStyle: { color: colors.text } }}
-      />
-      <AuthStack.Screen name="ClientLogin" component={ClientLoginScreen} />
       <AuthStack.Screen
         name="ClientRegister"
         component={ClientRegisterScreen}

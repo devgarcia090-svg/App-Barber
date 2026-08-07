@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { Alert, Modal, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,7 +10,6 @@ import { colors, radius } from "../theme";
 export function ClientProfileScreen() {
   const { client, logout } = useAuth();
   const [deleteVisible, setDeleteVisible] = useState(false);
-  const [deletePassword, setDeletePassword] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
@@ -48,10 +47,9 @@ export function ClientProfileScreen() {
   }
 
   async function confirmDelete() {
-    if (!deletePassword) return;
     setDeleting(true);
     try {
-      await api.deleteClientAccount(deletePassword);
+      await api.deleteClientAccount();
       setDeleteVisible(false);
       await logout();
     } catch (err) {
@@ -104,23 +102,17 @@ export function ClientProfileScreen() {
           <View style={styles.modalCard}>
             <Ionicons name="warning" size={30} color={colors.red} style={{ alignSelf: "center" }} />
             <Text style={styles.modalTitle}>Eliminar cuenta</Text>
-            <Text style={styles.modalText}>Se borrará tu cuenta y el historial de tus citas. Esta acción no se puede deshacer.</Text>
-            <Text style={styles.modalText}>Escribe tu contraseña para confirmar:</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={deletePassword}
-              onChangeText={setDeletePassword}
-              secureTextEntry
-              placeholder="Contraseña"
-              placeholderTextColor={colors.faint}
-            />
+            <Text style={styles.modalText}>
+              Se borrará tu cuenta y el historial de tus citas de forma permanente. Esta acción no se puede
+              deshacer.
+            </Text>
             <View style={styles.modalActions}>
               <Pressable style={styles.modalCancel} onPress={() => setDeleteVisible(false)}>
                 <Text style={{ color: colors.text, fontWeight: "600" }}>Cancelar</Text>
               </Pressable>
               <Pressable
-                style={[styles.modalDelete, (!deletePassword || deleting) && { opacity: 0.5 }]}
-                disabled={!deletePassword || deleting}
+                style={[styles.modalDelete, deleting && { opacity: 0.5 }]}
+                disabled={deleting}
                 onPress={confirmDelete}
               >
                 <Text style={{ color: "#fff", fontWeight: "700" }}>{deleting ? "Eliminando..." : "Eliminar cuenta"}</Text>

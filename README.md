@@ -17,10 +17,13 @@ web/        Panel del barbero (React + Vite) — se despliega gratis en Cloudfla
 mobile/     App Expo/React Native — dos roles: el barbero gestiona; el cliente reserva
 ```
 
-- **Dueño/barbero**: inicia sesión con Supabase Auth (email + contraseña) y gestiona su negocio; el acceso
-  a los datos está protegido por políticas RLS (cada negocio solo ve lo suyo).
-- **Clientes**: crean cuenta con teléfono + contraseña (gestionada por funciones RPC con bcrypt y un token
-  de sesión propio; no usan Supabase Auth), reservan, ven sus citas y las cancelan.
+**Login unificado**: todos entran por el mismo formulario (email + contraseña, Supabase Auth). Tras el
+login, la función `me()` devuelve el rol y la app enruta sola — no hay pantalla de "elegir rol":
+- **Dueño/barbero** (rol `admin`): gestiona su negocio; el acceso a los datos está protegido por RLS
+  (cada negocio solo ve lo suyo). Se vincula a su negocio la primera vez que inicia sesión (`claim_business`).
+- **Clientes** (rol `client`): se registran con email + contraseña (y teléfono, que se guarda para
+  recordatorios y fiabilidad), reservan, ven sus citas y las cancelan. Al registrarse con un teléfono que
+  ya existía como cliente sin cuenta, se hereda ese historial.
 - **Reserva pública** (sin cuenta): la web `/reserva/<slug>` permite reservar solo con nombre y teléfono.
 
 ## Puesta en marcha de Supabase

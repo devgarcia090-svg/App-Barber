@@ -108,24 +108,18 @@ export function buildPrewarning(c: Pick<Client, "name" | "noShowCount" | "lateCa
 // ---- Session / current business --------------------------------------------
 let barberId: string | null = null;
 
-async function loadBarber(): Promise<Barber> {
-  const { data, error } = await supabase
-    .from("Barber")
-    .select("id,businessName,slug,ownerName,email,phone")
-    .single();
-  if (error || !data) throw new ApiError(404, "No hay un negocio vinculado a esta cuenta");
-  barberId = data.id;
-  return data as Barber;
+async function role(): Promise<{ role: "admin" | "client" | null; profile?: Barber }> {
+  const { data, error } = await supabase.rpc("me");
+  if (error || !data) return { role: null };
+  if (data.role === "admin") barberId = data.profile.id;
+  return { role: data.role, profile: data.role === "admin" ? (data.profile as Barber) : undefined };
 }
 
 export async function loadCurrentBarber(): Promise<Barber | null> {
   const { data } = await supabase.auth.getSession();
   if (!data.session) return null;
-  try {
-    return await loadBarber();
-  } catch {
-    return null;
-  }
+  const r = await role();
+  return r.role === "admin" ? r.profile ?? null : null;
 }
 
 // supabase-js is untyped here (no generated Database types), so results come
@@ -140,9 +134,21 @@ export const api = {
   async login(email: string, password: string) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error || !data.session) throw new ApiError(401, "Email o contraseña incorrectos");
-    await supabase.rpc("claim_business", { p_slug: BUSINESS_SLUG }); // no-op if already linked
-    const barber = await loadBarber();
-    return { token: data.session.access_token, barber };
+    let r = await role();
+    if (r.role === "client") {
+      await supabase.auth.signOut();
+      throw new ApiError(403, "Esta cuenta es de cliente. Reserva desde la app o la página de reservas.");
+    }
+    // First-ever owner login: link this Supabase user to the (unclaimed) business.
+    if (r.role === null) {
+      await supabase.rpc("claim_business", { p_slug: BUSINESS_SLUG });
+      r = await role();
+    }
+    if (r.role !== "admin" || !r.profile) {
+      await supabase.auth.signOut();
+      throw new ApiError(403, "Esta cuenta no está vinculada a ningún negocio.");
+    }
+    return { token: data.session.access_token, barber: r.profile };
   },
 
   async register(d: { businessName: string; ownerName: string; email: string; password: string; phone?: string }) {
@@ -160,9 +166,10 @@ export const api = {
         .update({ businessName: d.businessName, ownerName: d.ownerName, phone: d.phone ?? null })
         .eq("authUserId", u.user.id);
     }
-    const barber = await loadBarber();
+    const r = await role();
+    if (r.role !== "admin" || !r.profile) throw new ApiError(400, "No se pudo vincular el negocio");
     const { data: s } = await supabase.auth.getSession();
-    return { token: s.session?.access_token ?? "", barber };
+    return { token: s.session?.access_token ?? "", barber: r.profile };
   },
 
   async logout() {

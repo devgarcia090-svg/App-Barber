@@ -5,7 +5,7 @@ import { ApiError } from "../api";
 import { colors, radius, shadow } from "../theme";
 
 export function ClientRegisterScreen() {
-  const { clientRegister } = useAuth();
+  const { registerClient } = useAuth();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
@@ -13,13 +13,13 @@ export function ClientRegisterScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit() {
-    if (!name.trim() || !phone.trim() || password.length < 8) {
-      Alert.alert("Revisa los datos", "Indica tu nombre, teléfono y una contraseña de al menos 8 caracteres.");
+    if (!name.trim() || !phone.trim() || !email.trim() || password.length < 8) {
+      Alert.alert("Revisa los datos", "Indica tu nombre, teléfono, email y una contraseña de al menos 8 caracteres.");
       return;
     }
     setSubmitting(true);
     try {
-      await clientRegister({ name: name.trim(), phone: phone.trim(), password, email: email.trim() || undefined });
+      await registerClient({ name: name.trim(), phone: phone.trim(), email: email.trim(), password });
     } catch (err) {
       Alert.alert("Error", err instanceof ApiError ? err.message : "No se pudo crear la cuenta");
     } finally {
@@ -43,7 +43,7 @@ export function ClientRegisterScreen() {
           placeholderTextColor={colors.faint}
         />
 
-        <Text style={styles.label}>EMAIL (OPCIONAL)</Text>
+        <Text style={styles.label}>EMAIL</Text>
         <TextInput
           style={styles.input}
           value={email}

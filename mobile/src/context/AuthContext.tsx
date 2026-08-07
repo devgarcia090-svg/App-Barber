@@ -1,69 +1,45 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, loadCurrentBarber, loadStoredClient, type Barber, type ClientAccount } from "../api";
+import { api, loadSession, type Barber, type ClientAccount, type Session } from "../api";
 
 interface AuthContextValue {
-  barber: Barber | null;
-  client: ClientAccount | null;
+  barber: Barber | null; // set when the logged-in user is an admin
+  client: ClientAccount | null; // set when the logged-in user is a client
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (data: { businessName: string; ownerName: string; email: string; password: string; phone?: string }) => Promise<void>;
-  clientLogin: (phone: string, password: string) => Promise<void>;
-  clientRegister: (data: { name: string; phone: string; password: string; email?: string }) => Promise<void>;
+  registerClient: (data: { name: string; phone: string; email: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [barber, setBarber] = useState<Barber | null>(null);
-  const [client, setClient] = useState<ClientAccount | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    (async () => {
-      const b = await loadCurrentBarber();
-      if (b) {
-        setBarber(b);
-      } else {
-        const c = await loadStoredClient();
-        if (c) setClient(c);
-      }
-      setLoading(false);
-    })();
+    loadSession()
+      .then(setSession)
+      .finally(() => setLoading(false));
   }, []);
 
   async function login(email: string, password: string) {
-    const { barber: b } = await api.login(email, password);
-    setBarber(b);
-    setClient(null);
+    setSession(await api.login(email, password));
   }
 
-  async function register(data: { businessName: string; ownerName: string; email: string; password: string; phone?: string }) {
-    const { barber: b } = await api.register(data);
-    setBarber(b);
-    setClient(null);
-  }
-
-  async function clientLogin(phone: string, password: string) {
-    const { client: c } = await api.clientLogin(phone, password);
-    setClient(c);
-    setBarber(null);
-  }
-
-  async function clientRegister(data: { name: string; phone: string; password: string; email?: string }) {
-    const { client: c } = await api.clientRegister(data);
-    setClient(c);
-    setBarber(null);
+  async function registerClient(data: { name: string; phone: string; email: string; password: string }) {
+    setSession(await api.registerClient(data));
   }
 
   async function logout() {
     await api.logout();
-    setBarber(null);
-    setClient(null);
+    setSession(null);
   }
 
+  const barber = session?.role === "admin" ? session.barber ?? null : null;
+  const client = session?.role === "client" ? session.client ?? null : null;
+
   return (
-    <AuthContext.Provider value={{ barber, client, loading, login, register, clientLogin, clientRegister, logout }}>
+    <AuthContext.Provider value={{ barber, client, loading, login, registerClient, logout }}>
       {children}
     </AuthContext.Provider>
   );

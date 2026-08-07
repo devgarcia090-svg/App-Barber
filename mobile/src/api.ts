@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase, BUSINESS_SLUG } from "./lib/supabase";
 
 export interface Barber {
@@ -140,75 +139,54 @@ function wrap(res: { data: any; error: { message: string } | null }): any {
 }
 
 // ---- Session state ----------------------------------------------------------
+export type Role = "admin" | "client";
+export interface Session {
+  role: Role;
+  barber?: Barber; // when role === "admin"
+  client?: ClientAccount; // when role === "client"
+}
+
 let barberId: string | null = null;
-let clientToken: string | null = null;
-const CLIENT_TOKEN_KEY = "clientToken";
 
-async function loadBarber(): Promise<Barber> {
-  const { data, error } = await supabase.from("Barber").select("id,businessName,slug,ownerName,email,phone").single();
-  if (error || !data) throw new ApiError(404, "No hay un negocio vinculado a esta cuenta");
-  barberId = data.id;
-  return data as Barber;
-}
-
-export async function loadCurrentBarber(): Promise<Barber | null> {
-  const { data } = await supabase.auth.getSession();
-  if (!data.session) return null;
-  try {
-    return await loadBarber();
-  } catch {
-    return null;
+// Resolve the logged-in user's role + profile via the me() RPC.
+export async function loadSession(): Promise<Session | null> {
+  const { data: s } = await supabase.auth.getSession();
+  if (!s.session) return null;
+  const { data, error } = await supabase.rpc("me");
+  if (error || !data || !data.role) return null;
+  if (data.role === "admin") {
+    barberId = data.profile.id;
+    return { role: "admin", barber: data.profile as Barber };
   }
-}
-
-export async function loadStoredClient(): Promise<ClientAccount | null> {
-  const [tok, raw] = await Promise.all([
-    AsyncStorage.getItem(CLIENT_TOKEN_KEY),
-    AsyncStorage.getItem("clientAccount"),
-  ]);
-  if (!tok || !raw) return null;
-  clientToken = tok;
-  return JSON.parse(raw) as ClientAccount;
-}
-
-async function setClientSession(token: string, client: ClientAccount) {
-  clientToken = token;
-  await AsyncStorage.multiSet([
-    [CLIENT_TOKEN_KEY, token],
-    ["clientAccount", JSON.stringify(client)],
-  ]);
-}
-
-function requireClientToken(): string {
-  if (!clientToken) throw new ApiError(401, "Sesión de cliente no iniciada");
-  return clientToken;
+  return { role: "client", client: data.profile as ClientAccount };
 }
 
 export const api = {
-  // ---- Owner auth ----
-  async login(email: string, password: string) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error || !data.session) throw new ApiError(401, "Email o contraseña incorrectos");
-    await supabase.rpc("claim_business", { p_slug: BUSINESS_SLUG });
-    const barber = await loadBarber();
-    return { token: data.session.access_token, barber };
+  // ---- Unified auth (email + password for everyone) ----
+  // Signs in and returns the resolved session; the app routes by session.role.
+  async login(email: string, password: string): Promise<Session> {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw new ApiError(401, "Email o contraseña incorrectos");
+    const session = await loadSession();
+    if (!session) throw new ApiError(403, "Esta cuenta no está configurada. Contacta con la barbería.");
+    return session;
   },
-  async register(d: { businessName: string; ownerName: string; email: string; password: string; phone?: string }) {
+  // Client self-registration: creates a Supabase Auth user, then links a Client
+  // row (claiming a walk-in record with the same phone if it exists).
+  async registerClient(d: { name: string; phone: string; email: string; password: string }): Promise<Session> {
     const { data, error } = await supabase.auth.signUp({ email: d.email, password: d.password });
     if (error) throw new ApiError(400, error.message);
     if (!data.session) {
       const { error: e2 } = await supabase.auth.signInWithPassword({ email: d.email, password: d.password });
       if (e2) throw new ApiError(400, "Cuenta creada. Confirma tu email y vuelve a iniciar sesión.");
     }
-    await supabase.rpc("claim_business", { p_slug: BUSINESS_SLUG });
-    const { data: u } = await supabase.auth.getUser();
-    if (u.user) {
-      await supabase.from("Barber").update({ businessName: d.businessName, ownerName: d.ownerName, phone: d.phone ?? null }).eq("authUserId", u.user.id);
-    }
-    const barber = await loadBarber();
-    const { data: s } = await supabase.auth.getSession();
-    return { token: s.session?.access_token ?? "", barber };
+    const { data: c, error: e3 } = await supabase.rpc("client_signup", {
+      p_slug: BUSINESS_SLUG, p_name: d.name, p_phone: d.phone, p_email: d.email,
+    });
+    if (e3) throw new ApiError(400, translateBookingError(e3.message));
+    return { role: "client", client: c as ClientAccount };
   },
+  // Owner account deletion (the owner is created in the Supabase dashboard).
   async deleteAccount(_password?: string) {
     if (barberId) await supabase.from("Barber").delete().eq("id", barberId);
     await supabase.auth.signOut();
@@ -216,8 +194,6 @@ export const api = {
   },
   async logout() {
     barberId = null;
-    clientToken = null;
-    await AsyncStorage.multiRemove([CLIENT_TOKEN_KEY, "clientAccount"]);
     await supabase.auth.signOut();
   },
 
@@ -305,46 +281,31 @@ export const api = {
     return { slots: (data as PublicSlot[]) ?? [] };
   },
 
-  // ---- Client auth + self-service ----
-  async clientRegister(d: { name: string; phone: string; password: string; email?: string }) {
-    const { data, error } = await supabase.rpc("client_register", {
-      p_slug: BUSINESS_SLUG, p_name: d.name, p_phone: d.phone, p_password: d.password, p_email: d.email ?? null,
-    });
-    if (error) throw new ApiError(400, translateBookingError(error.message));
-    await setClientSession(data.token, data.client);
-    return data as { token: string; client: ClientAccount };
-  },
-  async clientLogin(phone: string, password: string) {
-    const { data, error } = await supabase.rpc("client_login", { p_slug: BUSINESS_SLUG, p_phone: phone, p_password: password });
-    if (error) throw new ApiError(401, translateBookingError(error.message));
-    await setClientSession(data.token, data.client);
-    return data as { token: string; client: ClientAccount };
-  },
+  // ---- Client self-service (uses the Supabase session, no token) ----
   async getMyAppointments() {
-    const { data, error } = await supabase.rpc("client_my_appointments", { p_token: requireClientToken() });
+    const { data, error } = await supabase.rpc("client_my_appointments");
     if (error) throw new ApiError(401, translateBookingError(error.message));
     return { appointments: (data as Appointment[]) ?? [] };
   },
   async bookAsClient(d: { staffId: string; serviceId: string; startTime: string; notes?: string }) {
     const { data, error } = await supabase.rpc("client_book", {
-      p_token: requireClientToken(), p_staff_id: d.staffId, p_service_id: d.serviceId, p_start: d.startTime, p_notes: d.notes ?? null,
+      p_staff_id: d.staffId, p_service_id: d.serviceId, p_start: d.startTime, p_notes: d.notes ?? null,
     });
     if (error) throw new ApiError(422, translateBookingError(error.message));
     return { appointment: data as Appointment };
   },
   async cancelMyAppointment(id: string) {
-    const { data, error } = await supabase.rpc("client_cancel", { p_token: requireClientToken(), p_appointment_id: id });
+    const { data, error } = await supabase.rpc("client_cancel", { p_appointment_id: id });
     if (error) throw new ApiError(400, translateBookingError(error.message));
     return { appointment: data as Appointment };
   },
   async registerPushToken(token: string | null) {
-    const { error } = await supabase.rpc("client_set_push_token", { p_token: requireClientToken(), p_push_token: token });
+    const { error } = await supabase.rpc("client_set_push_token", { p_push_token: token });
     if (error) throw new ApiError(400, error.message);
   },
-  async deleteClientAccount(password: string) {
-    const { error } = await supabase.rpc("client_delete_account", { p_token: requireClientToken(), p_password: password });
+  async deleteClientAccount() {
+    const { error } = await supabase.rpc("client_delete_account");
     if (error) throw new ApiError(401, translateBookingError(error.message));
-    await AsyncStorage.multiRemove([CLIENT_TOKEN_KEY, "clientAccount"]);
-    clientToken = null;
+    await supabase.auth.signOut();
   },
 };

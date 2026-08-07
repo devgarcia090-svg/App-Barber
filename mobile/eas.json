@@ -8,8 +8,8 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://TU-PROYECTO.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "TU_ANON_PUBLIC_KEY",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://djfqlctpcchadjaxcvcb.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqZnFsY3RwY2NoYWRqYXhjdmNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTkyNTcsImV4cCI6MjA5OTI3NTI1N30.PTy5G72l7S8O1TXR9hl9Pd8EdF7h3z06iXW1xmuFD0o",
         "EXPO_PUBLIC_BUSINESS_SLUG": "oficina-del-barbero"
       }
     },
@@ -20,16 +20,16 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://TU-PROYECTO.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "TU_ANON_PUBLIC_KEY",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://djfqlctpcchadjaxcvcb.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqZnFsY3RwY2NoYWRqYXhjdmNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTkyNTcsImV4cCI6MjA5OTI3NTI1N30.PTy5G72l7S8O1TXR9hl9Pd8EdF7h3z06iXW1xmuFD0o",
         "EXPO_PUBLIC_BUSINESS_SLUG": "oficina-del-barbero"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://TU-PROYECTO.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "TU_ANON_PUBLIC_KEY",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://djfqlctpcchadjaxcvcb.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqZnFsY3RwY2NoYWRqYXhjdmNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2OTkyNTcsImV4cCI6MjA5OTI3NTI1N30.PTy5G72l7S8O1TXR9hl9Pd8EdF7h3z06iXW1xmuFD0o",
         "EXPO_PUBLIC_BUSINESS_SLUG": "oficina-del-barbero"
       }
     }

@@ -49,6 +49,7 @@ export interface Slot {
   label: string;
   available: boolean;
   busyClientName?: string;
+  past?: boolean;
 }
 
 const SLOT_GRANULARITY_MINUTES = 15;
@@ -72,18 +73,21 @@ export function generateDaySlots(
     clientName: b.clientName,
   }));
 
+  const now = Date.now();
   const slots: Slot[] = [];
   for (let start = shift.startMinute; start + serviceDurationMinutes <= shift.endMinute; start += SLOT_GRANULARITY_MINUTES) {
     const slotStart = new Date(`${dateStr}T00:00:00`);
     slotStart.setMinutes(start);
     const slotEnd = new Date(slotStart.getTime() + serviceDurationMinutes * 60 * 1000);
 
+    const past = slotStart.getTime() < now;
     const overlapping = busyRanges.find((b) => slotStart.getTime() < b.end && slotEnd.getTime() > b.start);
     slots.push({
       startMinute: start,
       label: minutesToTimeLabel(start),
-      available: !overlapping,
+      available: !overlapping && !past,
       busyClientName: overlapping?.clientName,
+      past,
     });
   }
   return slots;

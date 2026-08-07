@@ -149,7 +149,7 @@ export function NewAppointmentPage() {
 
         <label>
           Fecha
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+          <input type="date" value={date} min={todayStr()} onChange={(e) => setDate(e.target.value)} required />
         </label>
 
         <div>
@@ -163,7 +163,7 @@ export function NewAppointmentPage() {
                 type="button"
                 className={`slot ${slot.available ? "slot-available" : "slot-busy"} ${selectedSlot === slot.startMinute ? "slot-selected" : ""}`}
                 disabled={!slot.available}
-                title={slot.available ? "Libre" : `Ocupado: ${slot.busyClientName}`}
+                title={slot.available ? "Libre" : slot.past ? "Ya ha pasado" : `Ocupado: ${slot.busyClientName}`}
                 onClick={() => setSelectedSlot(slot.startMinute)}
               >
                 {slot.label}

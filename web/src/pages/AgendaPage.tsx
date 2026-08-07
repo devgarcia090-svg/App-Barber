@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError, type Appointment, type AppointmentStatus, type PaymentMethod, type Staff } from "../api";
 import { ReliabilityBadge } from "../components/ReliabilityBadge";
 import { PrewarningBanner } from "../components/PrewarningBanner";
-import { addDaysToDateStr, dayBounds, formatDateHuman, formatMoney, formatTime, minutesToTimeLabel, STATUS_LABELS, todayStr } from "../utils";
+import { addDaysToDateStr, dayBounds, formatMoney, formatTime, minutesToTimeLabel, STATUS_LABELS, todayStr } from "../utils";
 
 const NEXT_STATUS: Partial<Record<AppointmentStatus, { label: string; status: AppointmentStatus }[]>> = {
   PENDING: [
@@ -17,12 +17,24 @@ const NEXT_STATUS: Partial<Record<AppointmentStatus, { label: string; status: Ap
   ],
 };
 
+const PX_PER_MIN = 1.5; // altura del calendario: 1 hora = 90px
+const WEEKDAYS = ["L", "M", "X", "J", "V", "S", "D"];
+
 function localMinute(iso: string): number {
   const d = new Date(iso);
   return d.getHours() * 60 + d.getMinutes();
 }
 
-type Row = { kind: "appt"; appt: Appointment } | { kind: "free"; minute: number; past: boolean };
+// Lunes de la semana que contiene dateStr.
+function mondayOf(dateStr: string): Date {
+  const d = new Date(`${dateStr}T00:00:00`);
+  const dow = (d.getDay() + 6) % 7; // 0 = lunes
+  d.setDate(d.getDate() - dow);
+  return d;
+}
+function ymd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 export function AgendaPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -35,6 +47,7 @@ export function AgendaPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [payingFor, setPayingFor] = useState<Appointment | null>(null);
+  const [selected, setSelected] = useState<Appointment | null>(null);
 
   useEffect(() => {
     api.getStaff().then((r) => setStaff(r.staff.filter((s) => s.active)));
@@ -45,11 +58,11 @@ export function AgendaPage() {
     setError(null);
     const { from, to } = dayBounds(date);
     api
-      .getAppointments({ from, to, ...(staffId !== "all" ? { staffId } : {}) })
+      .getAppointments({ from, to })
       .then((r) => setAppointments(r.appointments))
       .catch((err) => setError(err instanceof ApiError ? err.message : "Error cargando la agenda"))
       .finally(() => setLoading(false));
-  }, [date, staffId]);
+  }, [date]);
 
   function setDate(newDate: string) {
     setSearchParams((prev) => {
@@ -64,107 +77,83 @@ export function AgendaPage() {
     });
   }
 
-  async function updateStatus(appointmentId: string, status: AppointmentStatus) {
+  async function updateStatus(id: string, status: AppointmentStatus) {
     try {
-      const { appointment } = await api.setAppointmentStatus(appointmentId, status);
+      const { appointment } = await api.setAppointmentStatus(id, status);
       setAppointments((prev) => prev.map((a) => (a.id === appointment.id ? { ...a, ...appointment } : a)));
+      setSelected(null);
     } catch (err) {
       alert(err instanceof ApiError ? err.message : "No se pudo actualizar la cita");
     }
   }
-  async function complete(appointmentId: string, method: PaymentMethod | null) {
+  async function complete(id: string, method: PaymentMethod | null) {
     try {
-      const { appointment } = await api.completeAppointment(appointmentId, method);
+      const { appointment } = await api.completeAppointment(id, method);
       setAppointments((prev) => prev.map((a) => (a.id === appointment.id ? { ...a, ...appointment } : a)));
       setPayingFor(null);
+      setSelected(null);
     } catch (err) {
       alert(err instanceof ApiError ? err.message : "No se pudo completar la cita");
     }
   }
 
-  const selectedStaff = staff.find((s) => s.id === staffId);
+  const cols = staffId === "all" ? staff : staff.filter((s) => s.id === staffId);
+  const dow = new Date(`${date}T00:00:00`).getDay();
+  const shiftsOf = (s: Staff) => s.workingHours.filter((w) => w.dayOfWeek === dow).sort((a, b) => a.startMinute - b.startMinute);
 
-  // Línea de tiempo del día para un barbero concreto: huecos libres + citas.
-  const timeline: Row[] = useMemo(() => {
-    if (!selectedStaff) return [];
-    const dow = new Date(`${date}T00:00:00`).getDay();
-    const shifts = selectedStaff.workingHours.filter((w) => w.dayOfWeek === dow).sort((a, b) => a.startMinute - b.startMinute);
-    const live = appointments
-      .filter((a) => a.status !== "CANCELLED" && a.status !== "NO_SHOW")
-      .map((a) => ({ a, s: localMinute(a.startTime), e: localMinute(a.endTime) }))
-      .sort((x, y) => x.s - y.s);
-    const now = Date.now();
-    const rows: Row[] = [];
-    for (const shift of shifts) {
-      let t = shift.startMinute;
-      while (t < shift.endMinute) {
-        const starting = live.find((x) => x.s >= t && x.s < t + 15);
-        const covering = live.find((x) => x.s <= t && x.e > t);
-        if (starting) {
-          rows.push({ kind: "appt", appt: starting.a });
-          t = Math.max(t + 15, starting.e);
-        } else if (covering) {
-          t += 15;
-        } else {
-          const slotStart = new Date(`${date}T00:00:00`);
-          slotStart.setMinutes(t);
-          rows.push({ kind: "free", minute: t, past: slotStart.getTime() < now });
-          t += 15;
-        }
-      }
+  // Rango horario de la rejilla: turnos de los barberos mostrados, ampliado si
+  // alguna cita cae fuera del horario (así nunca se sale de la rejilla).
+  const bounds = useMemo(() => {
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const s of cols) for (const sh of shiftsOf(s)) {
+      lo = Math.min(lo, sh.startMinute);
+      hi = Math.max(hi, sh.endMinute);
     }
-    return rows;
-  }, [selectedStaff, appointments, date]);
+    for (const a of appointments) {
+      if (a.status === "CANCELLED" || a.status === "NO_SHOW") continue;
+      if (!cols.some((c) => c.id === a.staff?.id)) continue;
+      lo = Math.min(lo, localMinute(a.startTime));
+      hi = Math.max(hi, localMinute(a.endTime));
+    }
+    if (!isFinite(lo)) return null;
+    return { start: Math.floor(lo / 60) * 60, end: Math.ceil(hi / 60) * 60 };
+  }, [cols, date, appointments]);
 
-  const freeCount = timeline.filter((r) => r.kind === "free" && !r.past).length;
-  const useTimeline = !!selectedStaff && timeline.length > 0;
-  // Citas canceladas / no presentadas del día (no ocupan hueco, pero conviene verlas).
-  const inactive = useTimeline ? appointments.filter((a) => a.status === "CANCELLED" || a.status === "NO_SHOW") : [];
+  const now = Date.now();
+  const weekDays = useMemo(() => {
+    const mon = mondayOf(date);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(mon);
+      d.setDate(mon.getDate() + i);
+      return d;
+    });
+  }, [date]);
 
-  function quickAdd(minute: number) {
-    navigate(`/nueva-cita?fecha=${date}&staffId=${staffId}&min=${minute}`);
+  function quickAdd(minute: number, sid: string) {
+    navigate(`/nueva-cita?fecha=${date}&staffId=${sid}&min=${minute}`);
   }
 
-  function ApptCard({ appt }: { appt: Appointment }) {
-    return (
-      <div className={`appointment-card appt-${appt.status.toLowerCase()}`}>
-        <div className="appointment-time">
-          <strong>{formatTime(appt.startTime)}</strong>
-          <span className="muted"> - {formatTime(appt.endTime)}</span>
-        </div>
-        <div className="appointment-body">
-          <div className="appointment-main">
-            <span className="client-name">{appt.client.name}</span>
-            <ReliabilityBadge status={appt.client.reliabilityStatus} />
-            <span className={`status-pill status-${appt.status.toLowerCase()}`}>{STATUS_LABELS[appt.status]}</span>
-          </div>
-          <div className="muted">
-            {appt.service.name} · {formatMoney(appt.service.priceCents)}
-            {staffId === "all" && appt.staff ? ` · ${appt.staff.name}` : ""}
-          </div>
-          <PrewarningBanner prewarning={appt.prewarning} />
-        </div>
-        <div className="appointment-actions">
-          {(appt.status === "PENDING" || appt.status === "CONFIRMED") && (
-            <Link className="btn-small" to={`/cita/${appt.id}/editar`}>
-              Editar
-            </Link>
-          )}
-          {(NEXT_STATUS[appt.status] ?? []).map((next) => (
-            <button
-              key={next.status}
-              className="btn-small"
-              onClick={() => (next.status === "COMPLETED" ? setPayingFor(appt) : updateStatus(appt.id, next.status))}
-            >
-              {next.label}
-            </button>
-          ))}
-          {appt.status === "COMPLETED" && appt.paymentMethod && (
-            <span className="pay-tag">{appt.paymentMethod === "CASH" ? "💶 Efectivo" : "💳 Tarjeta"}</span>
-          )}
-        </div>
-      </div>
-    );
+  const gridHeight = bounds ? (bounds.end - bounds.start) * PX_PER_MIN : 0;
+  const hourLabels = bounds
+    ? Array.from({ length: (bounds.end - bounds.start) / 60 + 1 }, (_, i) => bounds.start / 60 + i)
+    : [];
+
+  function columnFor(s: Staff) {
+    const shifts = shiftsOf(s);
+    const live = appointments.filter((a) => a.staff?.id === s.id && a.status !== "CANCELLED" && a.status !== "NO_SHOW");
+    // Huecos libres de 15 min dentro de los turnos.
+    const free: { minute: number; past: boolean }[] = [];
+    for (const sh of shifts) {
+      for (let t = sh.startMinute; t + 15 <= sh.endMinute; t += 15) {
+        const covered = live.some((a) => localMinute(a.startTime) < t + 15 && localMinute(a.endTime) > t);
+        if (covered) continue;
+        const slot = new Date(`${date}T00:00:00`);
+        slot.setMinutes(t);
+        free.push({ minute: t, past: slot.getTime() < now });
+      }
+    }
+    return { shifts, live, free };
   }
 
   return (
@@ -176,90 +165,173 @@ export function AgendaPage() {
         </Link>
       </div>
 
-      <div className="date-nav">
-        <button onClick={() => setDate(addDaysToDateStr(date, -1))}>‹</button>
-        <div className="date-nav-current">
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          <span className="muted">{formatDateHuman(date)}</span>
-        </div>
-        <button onClick={() => setDate(addDaysToDateStr(date, 1))}>›</button>
-        <button className="btn-ghost" onClick={() => setDate(todayStr())}>
-          Hoy
+      {/* Tira de semana */}
+      <div className="weekstrip">
+        <button className="week-nav" onClick={() => setDate(addDaysToDateStr(date, -7))} title="Semana anterior">
+          ‹
+        </button>
+        {weekDays.map((d) => {
+          const ds = ymd(d);
+          return (
+            <button key={ds} className={`weekday ${ds === date ? "active" : ""} ${ds === todayStr() ? "today" : ""}`} onClick={() => setDate(ds)}>
+              <span className="weekday-name">{WEEKDAYS[(d.getDay() + 6) % 7]}</span>
+              <span className="weekday-num">{d.getDate()}</span>
+            </button>
+          );
+        })}
+        <button className="week-nav" onClick={() => setDate(addDaysToDateStr(date, 7))} title="Semana siguiente">
+          ›
         </button>
       </div>
 
-      <div className="staff-tabs">
-        <button className={staffId === "all" ? "active" : ""} onClick={() => setStaffFilter("all")}>
-          Todos
-        </button>
-        {staff.map((s) => (
-          <button key={s.id} className={staffId === s.id ? "active" : ""} onClick={() => setStaffFilter(s.id)}>
-            <span className="dot" style={{ background: s.color }} />
-            {s.name}
+      <div className="agenda-toolbar">
+        <div className="staff-tabs">
+          <button className={staffId === "all" ? "active" : ""} onClick={() => setStaffFilter("all")}>
+            Todos
           </button>
-        ))}
+          {staff.map((s) => (
+            <button key={s.id} className={staffId === s.id ? "active" : ""} onClick={() => setStaffFilter(s.id)}>
+              <span className="dot" style={{ background: s.color }} />
+              {s.name}
+            </button>
+          ))}
+        </div>
+        <input className="agenda-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
       </div>
 
       {loading && <p className="muted">Cargando...</p>}
       {error && <div className="alert-error">{error}</div>}
 
-      {!loading && !error && (
-        <>
-          {staffId === "all" && (
-            <p className="muted agenda-hint">Elige un barbero para ver los huecos libres y añadir citas al momento.</p>
-          )}
+      {!loading && !error && !bounds && <p className="muted">Nadie trabaja ese día.</p>}
 
-          {useTimeline ? (
-            <>
-              <div className="timeline-summary">
-                <span className="dot" style={{ background: selectedStaff!.color }} /> {selectedStaff!.name} ·{" "}
-                <strong>{freeCount}</strong> {freeCount === 1 ? "hueco libre" : "huecos libres"}
-              </div>
-              <div className="timeline">
-                {timeline.map((row) =>
-                  row.kind === "appt" ? (
-                    <ApptCard key={row.appt.id} appt={row.appt} />
-                  ) : (
-                    <button
-                      key={`free-${row.minute}`}
-                      className="slot-free"
-                      disabled={row.past}
-                      onClick={() => quickAdd(row.minute)}
-                      title={row.past ? "Ya ha pasado" : "Añadir cita a esta hora"}
-                    >
-                      <span className="slot-free-time">{minutesToTimeLabel(row.minute)}</span>
-                      <span className="slot-free-label">{row.past ? "—" : "Libre"}</span>
-                      <span className="slot-free-add">＋</span>
-                    </button>
-                  )
-                )}
-              </div>
-
-              {inactive.length > 0 && (
-                <>
-                  <h2>Canceladas / no presentadas</h2>
-                  <div className="appointment-list">
-                    {inactive.map((appt) => (
-                      <ApptCard key={appt.id} appt={appt} />
-                    ))}
-                  </div>
-                </>
-              )}
-            </>
-          ) : (
-            <>
-              {selectedStaff && appointments.length === 0 && <p className="muted">Ese barbero no trabaja ese día.</p>}
-              {appointments.length === 0 && !selectedStaff && <p className="muted">No hay citas ese día.</p>}
-              <div className="appointment-list">
-                {appointments.map((appt) => (
-                  <ApptCard key={appt.id} appt={appt} />
+      {!loading && !error && bounds && (
+        <div className="cal-scroll">
+          <div className="cal">
+            <div className="cal-head">
+              <div className="cal-corner" />
+              {cols.map((s) => (
+                <div key={s.id} className="cal-colhead">
+                  <span className="dot" style={{ background: s.color }} /> {s.name}
+                </div>
+              ))}
+            </div>
+            <div className="cal-body" style={{ height: gridHeight }}>
+              <div className="cal-axis">
+                {hourLabels.map((h) => (
+                  <span key={h} className="cal-hour" style={{ top: (h * 60 - bounds.start) * PX_PER_MIN }}>
+                    {String(h).padStart(2, "0")}:00
+                  </span>
                 ))}
               </div>
-            </>
-          )}
-        </>
+              {/* línea de la hora actual (solo si estás viendo hoy) */}
+              {date === todayStr() &&
+                (() => {
+                  const d = new Date();
+                  const m = d.getHours() * 60 + d.getMinutes();
+                  if (m < bounds.start || m > bounds.end) return null;
+                  return <div className="cal-now" style={{ top: (m - bounds.start) * PX_PER_MIN }} />;
+                })()}
+              {cols.map((s) => {
+                const { shifts, live, free } = columnFor(s);
+                return (
+                  <div key={s.id} className="cal-col">
+                    {/* líneas de hora */}
+                    {hourLabels.slice(1).map((h) => (
+                      <div key={h} className="cal-line" style={{ top: (h * 60 - bounds.start) * PX_PER_MIN }} />
+                    ))}
+                    {/* turnos (zona abierta) */}
+                    {shifts.map((sh, i) => (
+                      <div
+                        key={i}
+                        className="cal-open"
+                        style={{ top: (sh.startMinute - bounds.start) * PX_PER_MIN, height: (sh.endMinute - sh.startMinute) * PX_PER_MIN }}
+                      />
+                    ))}
+                    {/* huecos libres */}
+                    {free.map((f) => (
+                      <button
+                        key={f.minute}
+                        className="cal-free"
+                        disabled={f.past}
+                        title={f.past ? "Ya ha pasado" : `Añadir cita a las ${minutesToTimeLabel(f.minute)}`}
+                        style={{ top: (f.minute - bounds.start) * PX_PER_MIN, height: 15 * PX_PER_MIN }}
+                        onClick={() => quickAdd(f.minute, s.id)}
+                      >
+                        <span className="cal-free-plus">＋</span>
+                      </button>
+                    ))}
+                    {/* citas */}
+                    {live.map((a) => {
+                      const start = localMinute(a.startTime);
+                      const end = localMinute(a.endTime);
+                      const h = (end - start) * PX_PER_MIN;
+                      return (
+                        <button
+                          key={a.id}
+                          className={`cal-appt appt-${a.status.toLowerCase()}`}
+                          style={{ top: (start - bounds.start) * PX_PER_MIN, height: Math.max(h - 2, 22) }}
+                          onClick={() => setSelected(a)}
+                        >
+                          <span className="cal-appt-top">
+                            <span className="cal-appt-time">{formatTime(a.startTime)}</span>
+                            <span className={`status-dot status-${a.status.toLowerCase()}`} />
+                          </span>
+                          <span className="cal-appt-name">{a.client.name}</span>
+                          {h > 46 && <span className="cal-appt-svc">{a.service.name}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       )}
 
+      {/* Detalle de cita con acciones */}
+      {selected && (
+        <div className="modal-overlay" onClick={() => setSelected(null)}>
+          <div className="modal-card modal-appt" onClick={(e) => e.stopPropagation()}>
+            <div className="appointment-main" style={{ justifyContent: "center" }}>
+              <span className="client-name">{selected.client.name}</span>
+              <ReliabilityBadge status={selected.client.reliabilityStatus} />
+            </div>
+            <p className="muted" style={{ textAlign: "center" }}>
+              {formatTime(selected.startTime)}–{formatTime(selected.endTime)} · {selected.service.name} · {formatMoney(selected.service.priceCents)}
+              {selected.staff ? ` · ${selected.staff.name}` : ""}
+            </p>
+            <p style={{ textAlign: "center" }}>
+              <span className={`status-pill status-${selected.status.toLowerCase()}`}>{STATUS_LABELS[selected.status]}</span>
+              {selected.status === "COMPLETED" && selected.paymentMethod && (
+                <span className="pay-tag"> · {selected.paymentMethod === "CASH" ? "💶 Efectivo" : "💳 Tarjeta"}</span>
+              )}
+            </p>
+            <PrewarningBanner prewarning={selected.prewarning} />
+            <div className="modal-actions">
+              {(selected.status === "PENDING" || selected.status === "CONFIRMED") && (
+                <Link className="btn-small" to={`/cita/${selected.id}/editar`}>
+                  Editar / mover
+                </Link>
+              )}
+              {(NEXT_STATUS[selected.status] ?? []).map((next) => (
+                <button
+                  key={next.status}
+                  className="btn-small"
+                  onClick={() => (next.status === "COMPLETED" ? setPayingFor(selected) : updateStatus(selected.id, next.status))}
+                >
+                  {next.label}
+                </button>
+              ))}
+            </div>
+            <button className="btn-ghost" onClick={() => setSelected(null)}>
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Método de pago al completar */}
       {payingFor && (
         <div className="modal-overlay" onClick={() => setPayingFor(null)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>

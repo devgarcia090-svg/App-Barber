@@ -116,6 +116,7 @@ export interface Appointment {
   endTime: string;
   status: AppointmentStatus;
   paymentMethod?: PaymentMethod | null;
+  guestCancelToken?: string | null;
   notes: string | null;
   client: Client;
   service: Service;
@@ -386,6 +387,34 @@ export const api = {
       p_client_name: d.clientName, p_client_phone: d.clientPhone, p_client_email: d.clientEmail ?? null, p_notes: d.notes ?? null,
     });
     if (error) throw new ApiError(422, translateBookingError(error.message));
+    return { appointment: data as Appointment };
+  },
+
+  // Gestionar una reserva hecha sin cuenta (QR/página pública), mediante el
+  // token que se muestra en la confirmación tras reservar — sin necesitar
+  // sesión ni exponer el resto del historial del cliente.
+  async publicGetAppointmentByToken(token: string) {
+    const { data, error } = await supabase.rpc("public_get_appointment_by_token", { p_token: token });
+    if (!data || error) throw new ApiError(404, "No se encontró la reserva");
+    return data as {
+      id: string;
+      startTime: string;
+      endTime: string;
+      status: AppointmentStatus;
+      serviceName: string;
+      staffName: string;
+      businessName: string;
+      clientName: string;
+    };
+  },
+  async publicCancelByToken(token: string) {
+    const { data, error } = await supabase.rpc("public_cancel_appointment", { p_token: token });
+    if (error) {
+      const msg = error.message.includes("NOT_CANCELLABLE")
+        ? "Esta cita ya no se puede cancelar (ya pasó, se completó o ya estaba cancelada)."
+        : "No se encontró la reserva.";
+      throw new ApiError(422, msg);
+    }
     return { appointment: data as Appointment };
   },
 

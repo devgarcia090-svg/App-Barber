@@ -13,6 +13,7 @@ import { IngresosPage } from "./pages/IngresosPage";
 import { FidelizacionPage } from "./pages/FidelizacionPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { PublicBookingPage } from "./pages/PublicBookingPage";
+import { CancelAppointmentPage } from "./pages/CancelAppointmentPage";
 import { PrivacyPage, TermsPage } from "./pages/LegalPages";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -27,6 +28,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/reserva/:slug" element={<PublicBookingPage />} />
+      <Route path="/cancelar-cita/:token" element={<CancelAppointmentPage />} />
       <Route path="/privacidad" element={<PrivacyPage />} />
       <Route path="/terminos" element={<TermsPage />} />
       <Route

@@ -68,7 +68,7 @@ export function PublicBookingPage() {
   const [clientPhone, setClientPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [confirmation, setConfirmation] = useState<{ date: string; time: string } | null>(null);
+  const [confirmation, setConfirmation] = useState<{ date: string; time: string; cancelToken: string | null } | null>(null);
 
   useEffect(() => {
     if (!slug) return;
@@ -125,14 +125,14 @@ export function PublicBookingPage() {
     setError(null);
     try {
       const startTime = zonedWallTimeToDate(selectedDate, selectedSlot);
-      await api.publicBook(slug, {
+      const { appointment } = await api.publicBook(slug, {
         staffId: staffId !== "any" ? staffId : slot.staffIds[0],
         serviceId: service.id,
         startTime: startTime.toISOString(),
         clientName,
         clientPhone,
       });
-      setConfirmation({ date: selectedDate, time: minutesToTimeLabel(selectedSlot) });
+      setConfirmation({ date: selectedDate, time: minutesToTimeLabel(selectedSlot), cancelToken: appointment.guestCancelToken ?? null });
       setStep(4);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo completar la reserva");
@@ -342,6 +342,22 @@ export function PublicBookingPage() {
             a las {confirmation.time}
           </p>
           <p className="muted">Te enviaremos un recordatorio antes de la cita. Si no puedes venir, avísanos cuanto antes.</p>
+
+          {confirmation.cancelToken && (
+            <div className="cancel-link-box">
+              <p className="cancel-link-label">¿Necesitas cancelarla? Guarda este enlace:</p>
+              <div className="cancel-link-row">
+                <code className="cancel-link-url">{`${window.location.origin}/cancelar-cita/${confirmation.cancelToken}`}</code>
+                <button
+                  type="button"
+                  className="btn-small"
+                  onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/cancelar-cita/${confirmation.cancelToken}`)}
+                >
+                  Copiar
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       )}
     </div>

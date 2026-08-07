@@ -1609,3 +1609,21 @@ input[type="checkbox"] {
 /* columna sobre la que se va a soltar */
 .cal-col.target { background-color: rgba(216, 173, 92, 0.045); }
 .cal-colhead.target { color: var(--gold); }
+
+/* ---- Enlace de cancelación para reservas sin cuenta ---- */
+.cancel-link-box {
+  margin-top: 1.2rem;
+  padding: 0.9rem 1rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+.cancel-link-label { margin: 0 0 0.5rem; font-size: 0.85rem; color: var(--muted); }
+.cancel-link-row { display: flex; gap: 0.6rem; align-items: center; }
+.cancel-link-url {
+  flex: 1;
+  font-size: 0.78rem;
+  color: var(--gold-2);
+  word-break: break-all;
+}

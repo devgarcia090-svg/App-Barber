@@ -7,8 +7,11 @@ export function Layout() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand">✂ {barber?.businessName?.toUpperCase()}</div>
-        <nav>
+        <div className="brand">
+          <span className="brand-mark">✂</span>
+          <span className="brand-name">{barber?.businessName}</span>
+        </div>
+        <nav className="topnav">
           <NavLink to="/" end>
             Agenda
           </NavLink>
@@ -19,8 +22,8 @@ export function Layout() {
           <NavLink to="/fidelizacion">Fidelización</NavLink>
           <NavLink to="/ajustes">Ajustes</NavLink>
         </nav>
-        <button className="btn-ghost" onClick={logout}>
-          Cerrar sesión
+        <button className="btn-ghost btn-logout" onClick={logout}>
+          Salir
         </button>
       </header>
       <main className="content">

@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError, type Appointment, type AppointmentStatus, type PaymentMethod, type Staff } from "../api";
 import { ReliabilityBadge } from "../components/ReliabilityBadge";
 import { PrewarningBanner } from "../components/PrewarningBanner";
-import { addDaysToDateStr, dayBounds, formatDateHuman, formatMoney, formatTime, STATUS_LABELS, todayStr } from "../utils";
+import { addDaysToDateStr, dayBounds, formatDateHuman, formatMoney, formatTime, minutesToTimeLabel, STATUS_LABELS, todayStr } from "../utils";
 
 const NEXT_STATUS: Partial<Record<AppointmentStatus, { label: string; status: AppointmentStatus }[]>> = {
   PENDING: [
@@ -17,8 +17,16 @@ const NEXT_STATUS: Partial<Record<AppointmentStatus, { label: string; status: Ap
   ],
 };
 
+function localMinute(iso: string): number {
+  const d = new Date(iso);
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+type Row = { kind: "appt"; appt: Appointment } | { kind: "free"; minute: number; past: boolean };
+
 export function AgendaPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const date = searchParams.get("fecha") ?? todayStr();
   const staffId = searchParams.get("staffId") ?? "all";
 
@@ -26,7 +34,6 @@ export function AgendaPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Cita pendiente de elegir método de pago al completarla.
   const [payingFor, setPayingFor] = useState<Appointment | null>(null);
 
   useEffect(() => {
@@ -50,7 +57,6 @@ export function AgendaPage() {
       return prev;
     });
   }
-
   function setStaffFilter(id: string) {
     setSearchParams((prev) => {
       prev.set("staffId", id);
@@ -66,7 +72,6 @@ export function AgendaPage() {
       alert(err instanceof ApiError ? err.message : "No se pudo actualizar la cita");
     }
   }
-
   async function complete(appointmentId: string, method: PaymentMethod | null) {
     try {
       const { appointment } = await api.completeAppointment(appointmentId, method);
@@ -75,6 +80,91 @@ export function AgendaPage() {
     } catch (err) {
       alert(err instanceof ApiError ? err.message : "No se pudo completar la cita");
     }
+  }
+
+  const selectedStaff = staff.find((s) => s.id === staffId);
+
+  // Línea de tiempo del día para un barbero concreto: huecos libres + citas.
+  const timeline: Row[] = useMemo(() => {
+    if (!selectedStaff) return [];
+    const dow = new Date(`${date}T00:00:00`).getDay();
+    const shifts = selectedStaff.workingHours.filter((w) => w.dayOfWeek === dow).sort((a, b) => a.startMinute - b.startMinute);
+    const live = appointments
+      .filter((a) => a.status !== "CANCELLED" && a.status !== "NO_SHOW")
+      .map((a) => ({ a, s: localMinute(a.startTime), e: localMinute(a.endTime) }))
+      .sort((x, y) => x.s - y.s);
+    const now = Date.now();
+    const rows: Row[] = [];
+    for (const shift of shifts) {
+      let t = shift.startMinute;
+      while (t < shift.endMinute) {
+        const starting = live.find((x) => x.s >= t && x.s < t + 15);
+        const covering = live.find((x) => x.s <= t && x.e > t);
+        if (starting) {
+          rows.push({ kind: "appt", appt: starting.a });
+          t = Math.max(t + 15, starting.e);
+        } else if (covering) {
+          t += 15;
+        } else {
+          const slotStart = new Date(`${date}T00:00:00`);
+          slotStart.setMinutes(t);
+          rows.push({ kind: "free", minute: t, past: slotStart.getTime() < now });
+          t += 15;
+        }
+      }
+    }
+    return rows;
+  }, [selectedStaff, appointments, date]);
+
+  const freeCount = timeline.filter((r) => r.kind === "free" && !r.past).length;
+  const useTimeline = !!selectedStaff && timeline.length > 0;
+  // Citas canceladas / no presentadas del día (no ocupan hueco, pero conviene verlas).
+  const inactive = useTimeline ? appointments.filter((a) => a.status === "CANCELLED" || a.status === "NO_SHOW") : [];
+
+  function quickAdd(minute: number) {
+    navigate(`/nueva-cita?fecha=${date}&staffId=${staffId}&min=${minute}`);
+  }
+
+  function ApptCard({ appt }: { appt: Appointment }) {
+    return (
+      <div className={`appointment-card appt-${appt.status.toLowerCase()}`}>
+        <div className="appointment-time">
+          <strong>{formatTime(appt.startTime)}</strong>
+          <span className="muted"> - {formatTime(appt.endTime)}</span>
+        </div>
+        <div className="appointment-body">
+          <div className="appointment-main">
+            <span className="client-name">{appt.client.name}</span>
+            <ReliabilityBadge status={appt.client.reliabilityStatus} />
+            <span className={`status-pill status-${appt.status.toLowerCase()}`}>{STATUS_LABELS[appt.status]}</span>
+          </div>
+          <div className="muted">
+            {appt.service.name} · {formatMoney(appt.service.priceCents)}
+            {staffId === "all" && appt.staff ? ` · ${appt.staff.name}` : ""}
+          </div>
+          <PrewarningBanner prewarning={appt.prewarning} />
+        </div>
+        <div className="appointment-actions">
+          {(appt.status === "PENDING" || appt.status === "CONFIRMED") && (
+            <Link className="btn-small" to={`/cita/${appt.id}/editar`}>
+              Editar
+            </Link>
+          )}
+          {(NEXT_STATUS[appt.status] ?? []).map((next) => (
+            <button
+              key={next.status}
+              className="btn-small"
+              onClick={() => (next.status === "COMPLETED" ? setPayingFor(appt) : updateStatus(appt.id, next.status))}
+            >
+              {next.label}
+            </button>
+          ))}
+          {appt.status === "COMPLETED" && appt.paymentMethod && (
+            <span className="pay-tag">{appt.paymentMethod === "CASH" ? "💶 Efectivo" : "💳 Tarjeta"}</span>
+          )}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -113,44 +203,62 @@ export function AgendaPage() {
       {loading && <p className="muted">Cargando...</p>}
       {error && <div className="alert-error">{error}</div>}
 
-      {!loading && appointments.length === 0 && <p className="muted">No hay citas ese día.</p>}
+      {!loading && !error && (
+        <>
+          {staffId === "all" && (
+            <p className="muted agenda-hint">Elige un barbero para ver los huecos libres y añadir citas al momento.</p>
+          )}
 
-      <div className="appointment-list">
-        {appointments.map((appt) => (
-          <div key={appt.id} className={`appointment-card appt-${appt.status.toLowerCase()}`}>
-            <div className="appointment-time">
-              <strong>{formatTime(appt.startTime)}</strong>
-              <span className="muted"> - {formatTime(appt.endTime)}</span>
-            </div>
-            <div className="appointment-body">
-              <div className="appointment-main">
-                <span className="client-name">{appt.client.name}</span>
-                <ReliabilityBadge status={appt.client.reliabilityStatus} />
-                <span className={`status-pill status-${appt.status.toLowerCase()}`}>{STATUS_LABELS[appt.status]}</span>
+          {useTimeline ? (
+            <>
+              <div className="timeline-summary">
+                <span className="dot" style={{ background: selectedStaff!.color }} /> {selectedStaff!.name} ·{" "}
+                <strong>{freeCount}</strong> {freeCount === 1 ? "hueco libre" : "huecos libres"}
               </div>
-              <div className="muted">
-                {appt.service.name} · {formatMoney(appt.service.priceCents)}
-                {staffId === "all" && appt.staff ? ` · ${appt.staff.name}` : ""}
+              <div className="timeline">
+                {timeline.map((row) =>
+                  row.kind === "appt" ? (
+                    <ApptCard key={row.appt.id} appt={row.appt} />
+                  ) : (
+                    <button
+                      key={`free-${row.minute}`}
+                      className="slot-free"
+                      disabled={row.past}
+                      onClick={() => quickAdd(row.minute)}
+                      title={row.past ? "Ya ha pasado" : "Añadir cita a esta hora"}
+                    >
+                      <span className="slot-free-time">{minutesToTimeLabel(row.minute)}</span>
+                      <span className="slot-free-label">{row.past ? "—" : "Libre"}</span>
+                      <span className="slot-free-add">＋</span>
+                    </button>
+                  )
+                )}
               </div>
-              <PrewarningBanner prewarning={appt.prewarning} />
-            </div>
-            <div className="appointment-actions">
-              {(NEXT_STATUS[appt.status] ?? []).map((next) => (
-                <button
-                  key={next.status}
-                  className="btn-small"
-                  onClick={() => (next.status === "COMPLETED" ? setPayingFor(appt) : updateStatus(appt.id, next.status))}
-                >
-                  {next.label}
-                </button>
-              ))}
-              {appt.status === "COMPLETED" && appt.paymentMethod && (
-                <span className="pay-tag">{appt.paymentMethod === "CASH" ? "💶 Efectivo" : "💳 Tarjeta"}</span>
+
+              {inactive.length > 0 && (
+                <>
+                  <h2>Canceladas / no presentadas</h2>
+                  <div className="appointment-list">
+                    {inactive.map((appt) => (
+                      <ApptCard key={appt.id} appt={appt} />
+                    ))}
+                  </div>
+                </>
               )}
-            </div>
-          </div>
-        ))}
-      </div>
+            </>
+          ) : (
+            <>
+              {selectedStaff && appointments.length === 0 && <p className="muted">Ese barbero no trabaja ese día.</p>}
+              {appointments.length === 0 && !selectedStaff && <p className="muted">No hay citas ese día.</p>}
+              <div className="appointment-list">
+                {appointments.map((appt) => (
+                  <ApptCard key={appt.id} appt={appt} />
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      )}
 
       {payingFor && (
         <div className="modal-overlay" onClick={() => setPayingFor(null)}>

@@ -1304,3 +1304,67 @@ input[type="checkbox"] {
 }
 .pay-btn:hover { background: var(--gold-soft); }
 .pay-emoji { font-size: 1.7rem; }
+
+/* ---- Agenda: línea de tiempo con huecos libres (fase 17) ---- */
+.agenda-hint { margin: 0 0 1rem; }
+.timeline-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin-bottom: 0.9rem;
+}
+.timeline-summary strong { color: var(--gold); }
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.slot-free {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 1rem;
+  color: var(--muted);
+  transition: border-color var(--ease), background var(--ease), color var(--ease);
+}
+.slot-free:hover:not(:disabled) {
+  border-color: var(--gold-border);
+  border-style: solid;
+  background: var(--gold-soft);
+  color: var(--gold);
+}
+.slot-free:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.slot-free-time {
+  font-weight: 700;
+  color: var(--text);
+  min-width: 52px;
+  font-variant-numeric: tabular-nums;
+}
+.slot-free:disabled .slot-free-time { color: var(--faint); text-decoration: line-through; }
+.slot-free-label { flex: 1; font-size: 0.85rem; }
+.slot-free-add {
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--gold);
+}
+.slot-free:hover:not(:disabled) .slot-free-add {
+  background: var(--gold);
+  color: #241a08;
+}

@@ -325,6 +325,28 @@ export const api = {
     if (error) throw new ApiError(422, translateBookingError(error.message));
     return { appointment: data as Appointment, prewarning: null };
   },
+  async getAppointment(id: string) {
+    const data = wrap(
+      await supabase
+        .from("Appointment")
+        .select("*, client:Client(*), service:Service(*), staff:Staff(*)")
+        .eq("id", id)
+        .single()
+    ) as Appointment;
+    return { appointment: { ...data, prewarning: data.client ? buildPrewarning(data.client) : null } };
+  },
+  // Mover / editar una cita existente (cuando el cliente llama para cambiarla).
+  async rescheduleAppointment(id: string, d: { staffId: string; serviceId: string; startTime: string; notes?: string }) {
+    const { data, error } = await supabase.rpc("owner_reschedule", {
+      p_id: id,
+      p_staff_id: d.staffId,
+      p_service_id: d.serviceId,
+      p_start: d.startTime,
+      p_notes: d.notes ?? null,
+    });
+    if (error) throw new ApiError(422, translateBookingError(error.message));
+    return { appointment: data as Appointment };
+  },
   async setAppointmentStatus(id: string, status: AppointmentStatus) {
     const data = wrap(await supabase.from("Appointment").update({ status }).eq("id", id).select().single());
     return { appointment: data as Appointment };
@@ -418,5 +440,7 @@ function translateBookingError(msg: string): string {
   if (msg.includes("OUTSIDE_HOURS")) return "Esa hora está fuera del horario de trabajo.";
   if (msg.includes("SERVICE_NOT_FOUND")) return "Servicio no encontrado.";
   if (msg.includes("STAFF_NOT_FOUND")) return "Barbero no encontrado.";
+  if (msg.includes("NOT_EDITABLE")) return "Solo se pueden mover citas pendientes o confirmadas.";
+  if (msg.includes("NOT_FOUND")) return "No se encontró la cita.";
   return msg;
 }

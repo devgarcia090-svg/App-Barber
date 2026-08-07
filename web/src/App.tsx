@@ -5,6 +5,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { AgendaPage } from "./pages/AgendaPage";
 import { NewAppointmentPage } from "./pages/NewAppointmentPage";
+import { EditAppointmentPage } from "./pages/EditAppointmentPage";
 import { ClientsPage } from "./pages/ClientsPage";
 import { ClientDetailPage } from "./pages/ClientDetailPage";
 import { StaffPage } from "./pages/StaffPage";
@@ -39,6 +40,7 @@ function AppRoutes() {
       >
         <Route path="/" element={<AgendaPage />} />
         <Route path="/nueva-cita" element={<NewAppointmentPage />} />
+        <Route path="/cita/:id/editar" element={<EditAppointmentPage />} />
         <Route path="/clientes" element={<ClientsPage />} />
         <Route path="/clientes/:id" element={<ClientDetailPage />} />
         <Route path="/barberos" element={<StaffPage />} />

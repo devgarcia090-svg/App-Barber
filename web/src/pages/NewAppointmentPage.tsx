@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError, type Appointment, type Client, type Service, type Staff } from "../api";
 import { PrewarningBanner } from "../components/PrewarningBanner";
@@ -20,7 +20,8 @@ export function NewAppointmentPage() {
   const [staffId, setStaffId] = useState(searchParams.get("staffId") ?? "");
   const [serviceId, setServiceId] = useState("");
   const [date, setDate] = useState(searchParams.get("fecha") ?? todayStr());
-  const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+  const minParam = searchParams.get("min");
+  const [selectedSlot, setSelectedSlot] = useState<number | null>(minParam ? Number(minParam) : null);
 
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
@@ -49,10 +50,13 @@ export function NewAppointmentPage() {
   const selectedStaff = staff.find((s) => s.id === staffId);
   const selectedService = services.find((s) => s.id === serviceId);
 
+  const skipReset = useRef(true);
   useEffect(() => {
     if (!staffId || !date) return;
     setLoadingSlots(true);
-    setSelectedSlot(null);
+    // No borrar la hora preseleccionada (venida por URL) en la primera carga.
+    if (skipReset.current) skipReset.current = false;
+    else setSelectedSlot(null);
     const from = new Date(`${date}T00:00:00`).toISOString();
     const to = new Date(`${date}T23:59:59`).toISOString();
     api

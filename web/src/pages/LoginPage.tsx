@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { ApiError } from "../api";
 
@@ -46,9 +46,6 @@ export function LoginPage() {
         <button type="submit" className="btn-primary" disabled={submitting}>
           {submitting ? "Entrando..." : "Entrar"}
         </button>
-        <p className="muted">
-          ¿No tienes cuenta? <Link to="/registro">Regístrate</Link>
-        </p>
       </form>
     </div>
   );

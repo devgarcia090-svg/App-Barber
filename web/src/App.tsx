@@ -2,7 +2,6 @@ import { Navigate, Route, BrowserRouter, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Layout } from "./components/Layout";
 import { LoginPage } from "./pages/LoginPage";
-import { RegisterPage } from "./pages/RegisterPage";
 import { AgendaPage } from "./pages/AgendaPage";
 import { NewAppointmentPage } from "./pages/NewAppointmentPage";
 import { EditAppointmentPage } from "./pages/EditAppointmentPage";
@@ -27,7 +26,6 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/registro" element={<RegisterPage />} />
       <Route path="/reserva/:slug" element={<PublicBookingPage />} />
       <Route path="/privacidad" element={<PrivacyPage />} />
       <Route path="/terminos" element={<TermsPage />} />

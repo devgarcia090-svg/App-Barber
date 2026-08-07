@@ -5,7 +5,6 @@ interface AuthContextValue {
   barber: Barber | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (data: { businessName: string; ownerName: string; email: string; password: string; phone?: string }) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
 }
@@ -27,11 +26,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setBarber(b);
   }
 
-  async function register(data: { businessName: string; ownerName: string; email: string; password: string; phone?: string }) {
-    const { barber: b } = await api.register(data);
-    setBarber(b);
-  }
-
   async function logout() {
     await api.logout();
     setBarber(null);
@@ -42,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setBarber(b);
   }
 
-  return <AuthContext.Provider value={{ barber, loading, login, register, logout, refresh }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ barber, loading, login, logout, refresh }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

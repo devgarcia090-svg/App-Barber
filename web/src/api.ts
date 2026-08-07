@@ -1,4 +1,4 @@
-import { supabase, BUSINESS_SLUG } from "./lib/supabase";
+import { supabase } from "./lib/supabase";
 
 export interface Barber {
   id: string;
@@ -187,15 +187,10 @@ export const api = {
   async login(email: string, password: string) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error || !data.session) throw new ApiError(401, "Email o contraseña incorrectos");
-    let r = await role();
+    const r = await role();
     if (r.role === "client") {
       await supabase.auth.signOut();
       throw new ApiError(403, "Esta cuenta es de cliente. Reserva desde la app o la página de reservas.");
-    }
-    // First-ever owner login: link this Supabase user to the (unclaimed) business.
-    if (r.role === null) {
-      await supabase.rpc("claim_business", { p_slug: BUSINESS_SLUG });
-      r = await role();
     }
     if (r.role !== "admin" || !r.profile) {
       await supabase.auth.signOut();
@@ -204,36 +199,18 @@ export const api = {
     return { token: data.session.access_token, barber: r.profile };
   },
 
-  async register(d: { businessName: string; ownerName: string; email: string; password: string; phone?: string }) {
-    const { data, error } = await supabase.auth.signUp({ email: d.email, password: d.password });
-    if (error) throw new ApiError(400, error.message);
-    if (!data.session) {
-      const { error: e2 } = await supabase.auth.signInWithPassword({ email: d.email, password: d.password });
-      if (e2) throw new ApiError(400, "Cuenta creada. Confirma tu email y vuelve a iniciar sesión.");
-    }
-    await supabase.rpc("claim_business", { p_slug: BUSINESS_SLUG });
-    const { data: u } = await supabase.auth.getUser();
-    if (u.user) {
-      await supabase
-        .from("Barber")
-        .update({ businessName: d.businessName, ownerName: d.ownerName, phone: d.phone ?? null })
-        .eq("authUserId", u.user.id);
-    }
-    const r = await role();
-    if (r.role !== "admin" || !r.profile) throw new ApiError(400, "No se pudo vincular el negocio");
-    const { data: s } = await supabase.auth.getSession();
-    return { token: s.session?.access_token ?? "", barber: r.profile };
-  },
-
   async logout() {
     barberId = null;
     await supabase.auth.signOut();
   },
 
+  // Borra el negocio Y la cuenta de Supabase Auth del dueño (RPC — el cliente
+  // con la anon key no puede borrar su propio auth.users directamente).
   async deleteAccount(_password?: string) {
-    if (barberId) await supabase.from("Barber").delete().eq("id", barberId);
-    await supabase.auth.signOut();
+    const { error } = await supabase.rpc("owner_delete_account");
+    if (error) throw new ApiError(400, error.message);
     barberId = null;
+    await supabase.auth.signOut();
   },
 
   // ---- Services ----

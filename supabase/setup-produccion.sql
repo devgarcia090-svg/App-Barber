@@ -2,7 +2,16 @@
 -- App-Barber — SETUP COMPLETO PARA SUPABASE (pegar en SQL Editor y pulsar RUN)
 -- Crea todo: tablas + RLS + funciones + invitaciones + enlace mágico +
 -- facturación/estadísticas + fidelización + método de pago + reprogramar citas
--- + datos de ejemplo. Ejecutar UNA vez en un proyecto sin datos.
+-- + fixes de seguridad (auditoría) + datos de ejemplo.
+-- Ejecutar UNA vez en un proyecto sin datos.
+--
+-- IMPORTANTE tras ejecutar este script: el alta del dueño ya NO se hace desde
+-- la web (se eliminó el auto-registro por motivos de seguridad). Créalo así:
+--   1. Authentication → Users → Add user (email + contraseña), o
+--      supabase.auth.admin.createUser(...) desde un script de confianza.
+--   2. Ejecuta en el SQL Editor:
+--      UPDATE "Barber" SET "authUserId" = (SELECT id FROM auth.users WHERE email = 'TU_EMAIL')
+--      WHERE "slug" = 'TU_SLUG';
 -- =============================================================================
 
 DROP SCHEMA IF EXISTS public CASCADE;
@@ -1383,6 +1392,270 @@ EXCEPTION WHEN exclusion_violation THEN
 END; $$;
 
 GRANT EXECUTE ON FUNCTION public.owner_reschedule(TEXT,TEXT,TEXT,TIMESTAMPTZ,TEXT) TO authenticated;
+
+-- ==== 20260725000000_fix_public_book_guard ====
+-- =============================================================================
+-- Fix de seguridad (auditoría): public_book protegía el nombre de un cliente
+-- "registrado" comprobando "passwordHash" IS NULL, pero desde la migración de
+-- auth unificada (20260720000000) el registro real ya no usa passwordHash sino
+-- "authUserId" — passwordHash quedó huérfano y siempre NULL para cualquiera
+-- que se registrase por el flujo actual. Resultado: cualquier persona anónima
+-- que conociera el teléfono de un cliente registrado podía sobrescribir su
+-- nombre llamando a public_book sin autenticarse. Verificado y reproducido
+-- contra una base de datos real antes de este fix.
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION public.public_book(
+  p_slug TEXT, p_staff_id TEXT, p_service_id TEXT, p_start TIMESTAMPTZ,
+  p_client_name TEXT, p_client_phone TEXT, p_client_email TEXT DEFAULT NULL, p_notes TEXT DEFAULT NULL
+) RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_barber TEXT; v_client TEXT; appt "Appointment"%ROWTYPE; BEGIN
+  SELECT "id" INTO v_barber FROM "Barber" WHERE "slug" = p_slug;
+  IF v_barber IS NULL THEN RAISE EXCEPTION 'BUSINESS_NOT_FOUND'; END IF;
+
+  INSERT INTO "Client"("barberId","name","phone","email") VALUES (v_barber, p_client_name, p_client_phone, p_client_email)
+  ON CONFLICT ("barberId","phone") DO UPDATE SET
+    -- solo se actualiza el nombre de un cliente "walk-in" sin cuenta; nunca el
+    -- de uno con cuenta registrada (comprobado por authUserId, no passwordHash).
+    "name"  = CASE WHEN "Client"."authUserId" IS NULL THEN EXCLUDED."name" ELSE "Client"."name" END,
+    -- solo rellena un email vacío; nunca sobrescribe uno existente.
+    "email" = COALESCE("Client"."email", EXCLUDED."email")
+  RETURNING "id" INTO v_client;
+
+  appt := public._create_appointment(v_barber, p_staff_id, v_client, p_service_id, p_start, p_notes);
+  RETURN to_jsonb(appt);
+END; $$;
+
+-- Limpieza (minimización de datos): passwordHash quedó sin uso — ninguna
+-- función activa lo escribe desde la auth unificada, y las que lo hacían
+-- (client_register/client_login) ya se eliminaron. Si un cliente se registró
+-- con el sistema antiguo antes de esa migración, este DROP borra ese hash
+-- huérfano, que ya no protege nada.
+ALTER TABLE "Client" DROP COLUMN IF EXISTS "passwordHash";
+
+-- ==== 20260726000000_fix_status_counters ====
+-- =============================================================================
+-- Fix (auditoría): el trigger de fiabilidad solo SUMABA contadores al ENTRAR en
+-- un estado (COMPLETED/NO_SHOW/cancelación tardía) pero nunca los restaba al
+-- SALIR de él. Si el dueño corregía una cita mal marcada (p.ej. "Completada"
+-- por error → "No presentado"), el cliente se quedaba con un completedCount
+-- inflado para siempre (afecta a la fidelización) y/o con noShowCount duplicado
+-- si la cita oscilaba entre estados. Ahora el ajuste es simétrico: se resta al
+-- salir de un estado y se suma al entrar, y la fiabilidad se recalcula siempre
+-- que cambia el estado (no solo al entrar en CANCELLED/NO_SHOW), para que
+-- también mejore si una corrección reduce las incidencias.
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION public._on_appointment_status_change()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  s_risky INT; s_watch INT; s_late INT;
+  notice_hours DOUBLE PRECISION;
+  new_no_show INT; new_late INT; new_status "ReliabilityStatus"; strikes INT;
+  was_late_cancel BOOLEAN;
+BEGIN
+  IF NEW."status" IS NOT DISTINCT FROM OLD."status" THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT "riskyThreshold", "watchThreshold", "lateCancelThresholdHours"
+    INTO s_risky, s_watch, s_late
+    FROM "NotificationSettings" WHERE "barberId" = NEW."barberId";
+  s_risky := COALESCE(s_risky, 2); s_watch := COALESCE(s_watch, 1); s_late := COALESCE(s_late, 4);
+
+  -- ---- Salir del estado anterior: revertir lo que sumó en su momento -------
+  IF OLD."status" = 'NO_SHOW' THEN
+    UPDATE "Client" SET "noShowCount" = GREATEST("noShowCount" - 1, 0) WHERE "id" = NEW."clientId";
+  ELSIF OLD."status" = 'COMPLETED' THEN
+    UPDATE "Client" SET "completedCount" = GREATEST("completedCount" - 1, 0) WHERE "id" = NEW."clientId";
+  ELSIF OLD."status" = 'CANCELLED' THEN
+    -- Se guardó como tardía en su momento si cancelNoticeHours quedó por debajo
+    -- del umbral vigente entonces; lo usamos tal cual para revertir esa cuenta.
+    was_late_cancel := OLD."cancelNoticeHours" IS NOT NULL AND OLD."cancelNoticeHours" < s_late;
+    IF was_late_cancel THEN
+      UPDATE "Client" SET "lateCancelCount" = GREATEST("lateCancelCount" - 1, 0) WHERE "id" = NEW."clientId";
+    END IF;
+  END IF;
+
+  -- ---- Entrar en el nuevo estado --------------------------------------------
+  IF NEW."status" = 'CANCELLED' THEN
+    NEW."cancelledAt" := now();
+    notice_hours := GREATEST(0, EXTRACT(EPOCH FROM (NEW."startTime" - now())) / 3600.0);
+    NEW."cancelNoticeHours" := notice_hours;
+    IF notice_hours < s_late THEN
+      UPDATE "Client" SET "lateCancelCount" = "lateCancelCount" + 1 WHERE "id" = NEW."clientId";
+    END IF;
+  ELSIF NEW."status" = 'NO_SHOW' THEN
+    UPDATE "Client" SET "noShowCount" = "noShowCount" + 1 WHERE "id" = NEW."clientId";
+  ELSIF NEW."status" = 'COMPLETED' THEN
+    UPDATE "Client" SET "completedCount" = "completedCount" + 1 WHERE "id" = NEW."clientId";
+  END IF;
+
+  IF NEW."status" IN ('CANCELLED', 'NO_SHOW') THEN
+    -- Cancela cualquier recordatorio pendiente de una cita que ya no vaya a pasar.
+    UPDATE "Reminder" SET "status" = 'CANCELLED' WHERE "appointmentId" = NEW."id" AND "status" = 'PENDING';
+  END IF;
+
+  -- ---- Fiabilidad: se recalcula siempre, para que también pueda mejorar ----
+  SELECT "noShowCount", "lateCancelCount" INTO new_no_show, new_late FROM "Client" WHERE "id" = NEW."clientId";
+  strikes := new_no_show + new_late;
+  new_status := CASE WHEN strikes >= s_risky THEN 'RISKY'::"ReliabilityStatus"
+                     WHEN strikes >= s_watch THEN 'WATCH'::"ReliabilityStatus"
+                     ELSE 'RELIABLE'::"ReliabilityStatus" END;
+  UPDATE "Client" SET "reliabilityStatus" = new_status WHERE "id" = NEW."clientId";
+
+  RETURN NEW;
+END;
+$$;
+
+-- ==== 20260727000000_security_fixes ====
+-- =============================================================================
+-- Fixes de seguridad (auditoría). Cuatro hallazgos, de más a menos grave:
+--
+-- C1 (CRÍTICO) — Auto-registro como dueño. La ruta /registro + el RPC
+--   claim_business(slug) dejaban que CUALQUIER visitante que se registrase con
+--   un email cualquiera se convirtiera en el admin del negocio, con tal de
+--   llegar antes que el dueño real a su primer login. Se elimina el RPC por
+--   completo; el alta del dueño pasa a hacerse solo por SQL (service_role),
+--   como ya se documenta en el README.
+--
+-- C2 (CRÍTICO) — Robo de la ficha de un cliente por teléfono. client_signup y
+--   client_complete_profile vinculaban una cuenta nueva a un cliente "walk-in"
+--   ya existente con solo escribir su teléfono, sin demostrar que es suyo.
+--   Ahora solo se vincula si el email YA guardado en esa ficha coincide con el
+--   email verificado (por Supabase Auth) de quien se acaba de registrar; si no
+--   coincide, se rechaza y se sugiere pedir una invitación al negocio (que sí
+--   vincula por email, bajo control del dueño).
+--
+-- C3 (CRÍTICO, condicional a la config. del proyecto) — El trigger que vincula
+--   un nuevo auth.users a su Client por email se disparaba en el INSERT, antes
+--   de confirmar el correo. Ahora solo vincula si el email ya está confirmado,
+--   y se añade un segundo trigger que reacciona cuando se confirma más tarde.
+--
+-- A1 (ALTO) — La policy de "Barber" era FOR ALL, así que cualquier usuario
+--   autenticado podía INSERTAR su propia fila Barber (crear un negocio
+--   fantasma). Se separa en SELECT/UPDATE únicamente; el alta sigue siendo
+--   cosa de service_role.
+--
+-- M3 (MEDIO) — Al eliminar su cuenta, el dueño borraba su fila Barber pero no
+--   su usuario de auth.users (a diferencia de client_delete_account, que sí lo
+--   hacía). Se añade owner_delete_account() análogo.
+-- =============================================================================
+
+-- ---- C1: eliminar el auto-registro como dueño -------------------------------
+DROP FUNCTION IF EXISTS public.claim_business(TEXT);
+
+-- ---- A1: Barber ya no admite INSERT/DELETE desde el cliente -----------------
+DROP POLICY IF EXISTS "owner_barber" ON "Barber";
+CREATE POLICY "owner_barber_select" ON "Barber" FOR SELECT TO authenticated
+  USING ("authUserId" = auth.uid());
+CREATE POLICY "owner_barber_update" ON "Barber" FOR UPDATE TO authenticated
+  USING ("authUserId" = auth.uid()) WITH CHECK ("authUserId" = auth.uid());
+
+-- ---- C2: client_signup — vincular solo si el email verificado coincide -----
+CREATE OR REPLACE FUNCTION public.client_signup(p_slug TEXT, p_name TEXT, p_phone TEXT, p_email TEXT DEFAULT NULL)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_barber TEXT; existing "Client"%ROWTYPE; v_client TEXT; v_auth_email TEXT; BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'UNAUTHORIZED'; END IF;
+  SELECT "id" INTO v_barber FROM "Barber" WHERE "slug" = p_slug;
+  IF v_barber IS NULL THEN RAISE EXCEPTION 'BUSINESS_NOT_FOUND'; END IF;
+
+  -- ya vinculado? devolver directamente
+  SELECT * INTO existing FROM "Client" WHERE "authUserId" = auth.uid();
+  IF FOUND THEN RETURN public._client_json(existing."id"); END IF;
+
+  SELECT "email" INTO v_auth_email FROM auth.users WHERE "id" = auth.uid();
+
+  SELECT * INTO existing FROM "Client" WHERE "barberId" = v_barber AND "phone" = p_phone;
+  IF FOUND THEN
+    IF existing."authUserId" IS NOT NULL THEN RAISE EXCEPTION 'PHONE_TAKEN'; END IF;
+    -- El teléfono solo no basta como prueba: cualquiera puede escribir el de
+    -- otra persona. Solo se vincula si el email ya guardado en esa ficha
+    -- coincide con el de la cuenta recién creada (verificado por Supabase Auth).
+    IF existing."email" IS NOT NULL AND v_auth_email IS NOT NULL AND lower(existing."email") = lower(v_auth_email) THEN
+      UPDATE "Client" SET "authUserId" = auth.uid(), "name" = p_name
+        WHERE "id" = existing."id" RETURNING "id" INTO v_client;
+    ELSE
+      RAISE EXCEPTION 'PHONE_TAKEN'
+        USING HINT = 'Ese teléfono ya tiene citas registradas. Pide al negocio que te envíe una invitación por email para recuperar tu historial.';
+    END IF;
+  ELSE
+    INSERT INTO "Client"("barberId","name","phone","email","authUserId")
+    VALUES (v_barber, p_name, p_phone, COALESCE(p_email, v_auth_email), auth.uid()) RETURNING "id" INTO v_client;
+  END IF;
+  RETURN public._client_json(v_client);
+END; $$;
+
+-- ---- C2: client_complete_profile — misma protección (enlace mágico) -------
+CREATE OR REPLACE FUNCTION public.client_complete_profile(p_slug TEXT, p_name TEXT, p_phone TEXT)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_barber TEXT; v_email TEXT; existing "Client"%ROWTYPE; v_client TEXT; BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'UNAUTHORIZED'; END IF;
+  SELECT "id" INTO v_barber FROM "Barber" WHERE "slug" = p_slug;
+  IF v_barber IS NULL THEN RAISE EXCEPTION 'BUSINESS_NOT_FOUND'; END IF;
+  SELECT "email" INTO v_email FROM auth.users WHERE "id" = auth.uid();
+
+  SELECT * INTO existing FROM "Client" WHERE "authUserId" = auth.uid();
+  IF FOUND THEN RETURN public._client_json(existing."id"); END IF;
+
+  SELECT * INTO existing FROM "Client" WHERE "barberId" = v_barber AND "phone" = p_phone;
+  IF FOUND THEN
+    IF existing."authUserId" IS NOT NULL THEN RAISE EXCEPTION 'PHONE_TAKEN'; END IF;
+    IF existing."email" IS NOT NULL AND v_email IS NOT NULL AND lower(existing."email") = lower(v_email) THEN
+      UPDATE "Client" SET "authUserId" = auth.uid(), "name" = p_name
+        WHERE "id" = existing."id" RETURNING "id" INTO v_client;
+    ELSE
+      RAISE EXCEPTION 'PHONE_TAKEN'
+        USING HINT = 'Ese teléfono ya tiene citas registradas. Pide al negocio que te envíe una invitación por email para recuperar tu historial.';
+    END IF;
+  ELSE
+    INSERT INTO "Client"("barberId","name","phone","email","authUserId")
+    VALUES (v_barber, p_name, p_phone, v_email, auth.uid()) RETURNING "id" INTO v_client;
+  END IF;
+  RETURN public._client_json(v_client);
+END; $$;
+
+-- ---- C3: solo vincular por email cuando el email ya está confirmado -------
+CREATE OR REPLACE FUNCTION public.handle_new_auth_user()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NEW."email_confirmed_at" IS NULL THEN RETURN NEW; END IF;
+  UPDATE "Client"
+     SET "authUserId" = NEW."id"
+   WHERE "authUserId" IS NULL
+     AND lower("email") = lower(NEW."email");
+  RETURN NEW;
+END;
+$$;
+
+-- Ya existía (dispara al crearse el usuario; ahora solo actúa si ya está
+-- confirmado, p.ej. cuando las confirmaciones están desactivadas).
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_auth_user();
+
+-- Nuevo: si las confirmaciones están activas, el email se confirma más tarde
+-- (al pulsar el enlace) — este trigger vincula en ese momento, no antes.
+DROP TRIGGER IF EXISTS on_auth_user_confirmed ON auth.users;
+CREATE TRIGGER on_auth_user_confirmed
+  AFTER UPDATE OF "email_confirmed_at" ON auth.users
+  FOR EACH ROW
+  WHEN (OLD."email_confirmed_at" IS NULL AND NEW."email_confirmed_at" IS NOT NULL)
+  EXECUTE FUNCTION public.handle_new_auth_user();
+
+-- ---- M3: borrar la cuenta del dueño también borra su auth.users -----------
+CREATE OR REPLACE FUNCTION public.owner_delete_account()
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_barber TEXT; v_uid UUID; BEGIN
+  v_uid := auth.uid();
+  v_barber := public.current_barber_id();
+  IF v_barber IS NULL THEN RAISE EXCEPTION 'FORBIDDEN'; END IF;
+  DELETE FROM "Barber" WHERE "id" = v_barber;
+  DELETE FROM auth.users WHERE "id" = v_uid;
+END; $$;
+
+GRANT EXECUTE ON FUNCTION public.owner_delete_account() TO authenticated;
 
 -- ==== seed ====
 -- Demo data for local dev / first production seed.

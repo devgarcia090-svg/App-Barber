@@ -125,7 +125,8 @@ export function buildPrewarning(c: Pick<Client, "name" | "noShowCount" | "lateCa
 function translateBookingError(msg: string): string {
   if (msg.includes("SLOT_TAKEN")) return "Ese hueco ya está ocupado. Elige otra hora.";
   if (msg.includes("OUTSIDE_HOURS")) return "Esa hora está fuera del horario de trabajo.";
-  if (msg.includes("PHONE_TAKEN")) return "Ya existe una cuenta con este teléfono. Inicia sesión.";
+  if (msg.includes("PHONE_TAKEN"))
+    return "Ese teléfono ya tiene citas registradas. Si ya tienes cuenta, inicia sesión; si no, pide al negocio que te envíe una invitación por email.";
   if (msg.includes("BAD_CREDENTIALS")) return "Teléfono o contraseña incorrectos.";
   if (msg.includes("WEAK_PASSWORD")) return "La contraseña debe tener al menos 8 caracteres.";
   if (msg.includes("NOT_CANCELLABLE")) return "Esta cita ya no se puede cancelar.";
@@ -187,10 +188,12 @@ export const api = {
     return { role: "client", client: c as ClientAccount };
   },
   // Owner account deletion (the owner is created in the Supabase dashboard).
+  // Uses the RPC so the auth.users row is also removed, not just the business.
   async deleteAccount(_password?: string) {
-    if (barberId) await supabase.from("Barber").delete().eq("id", barberId);
-    await supabase.auth.signOut();
+    const { error } = await supabase.rpc("owner_delete_account");
+    if (error) throw new ApiError(400, error.message);
     barberId = null;
+    await supabase.auth.signOut();
   },
   async logout() {
     barberId = null;

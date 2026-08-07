@@ -112,7 +112,7 @@ export function buildPrewarning(c: Pick<Client, "name" | "noShowCount" | "lateCa
   if (c.reliabilityStatus === "RELIABLE") return null;
   const strikes = c.noShowCount + c.lateCancelCount;
   const parts: string[] = [];
-  if (c.noShowCount > 0) parts.push(`${c.noShowCount} vez${c.noShowCount === 1 ? "" : "es"} no se ha presentado`);
+  if (c.noShowCount > 0) parts.push(`${c.noShowCount} ${c.noShowCount === 1 ? "vez" : "veces"} no se ha presentado`);
   if (c.lateCancelCount > 0) parts.push(`${c.lateCancelCount} cancelación${c.lateCancelCount === 1 ? "" : "es"} de última hora`);
   const detail = parts.join(" y ");
   const message =

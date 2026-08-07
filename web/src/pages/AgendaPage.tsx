@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError, type Appointment, type AppointmentStatus, type PaymentMethod, type Staff } from "../api";
 import { ReliabilityBadge } from "../components/ReliabilityBadge";
 import { PrewarningBanner } from "../components/PrewarningBanner";
-import { addDaysToDateStr, dayBounds, formatMoney, formatTime, minutesToTimeLabel, STATUS_LABELS, todayStr } from "../utils";
+import { addDaysToDateStr, dayBounds, formatMoney, formatTime, minutesToTimeLabel, STATUS_LABELS, todayStr, zonedDateParts, zonedWallTimeToDate } from "../utils";
 
 const NEXT_STATUS: Partial<Record<AppointmentStatus, { label: string; status: AppointmentStatus }[]>> = {
   PENDING: [
@@ -21,9 +21,9 @@ const PX_PER_MIN = 1.5; // altura del calendario: 1 hora = 90px
 const SNAP = 15; // el arrastre encaja en tramos de 15 min
 const WEEKDAYS = ["L", "M", "X", "J", "V", "S", "D"];
 
+// Minuto del día en Europe/Madrid (no en el huso del dispositivo).
 function localMinute(iso: string): number {
-  const d = new Date(iso);
-  return d.getHours() * 60 + d.getMinutes();
+  return zonedDateParts(iso).minutes;
 }
 function isMovable(a: Appointment): boolean {
   return a.status === "PENDING" || a.status === "CONFIRMED";
@@ -194,8 +194,7 @@ export function AgendaPage() {
     if (!p) return;
     if (p.minute === localMinute(a.startTime) && p.staffId === a.staff?.id) return;
 
-    const startTime = new Date(`${date}T00:00:00`);
-    startTime.setMinutes(p.minute);
+    const startTime = zonedWallTimeToDate(date, p.minute);
     setMoving(true);
     try {
       await api.rescheduleAppointment(a.id, {
@@ -243,9 +242,7 @@ export function AgendaPage() {
           return st < t + SNAP && en > t;
         });
         if (covered) continue;
-        const slot = new Date(`${date}T00:00:00`);
-        slot.setMinutes(t);
-        free.push({ minute: t, past: slot.getTime() < now });
+        free.push({ minute: t, past: zonedWallTimeToDate(date, t).getTime() < now });
       }
     }
     return { shifts, live, free };
@@ -328,8 +325,7 @@ export function AgendaPage() {
 
                 {date === todayStr() &&
                   (() => {
-                    const d = new Date();
-                    const m = d.getHours() * 60 + d.getMinutes();
+                    const m = zonedDateParts(new Date().toISOString()).minutes;
                     if (m < bounds.start || m > bounds.end) return null;
                     return <div className="cal-now" style={{ top: (m - bounds.start) * PX_PER_MIN }} />;
                   })()}

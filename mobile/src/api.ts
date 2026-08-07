@@ -29,6 +29,7 @@ export interface PublicSlot {
 
 export type ReliabilityStatus = "RELIABLE" | "WATCH" | "RISKY";
 export type AppointmentStatus = "PENDING" | "CONFIRMED" | "CANCELLED" | "NO_SHOW" | "COMPLETED";
+export type PaymentMethod = "CASH" | "CARD";
 
 export interface Prewarning {
   status: ReliabilityStatus;
@@ -81,6 +82,7 @@ export interface Appointment {
   startTime: string;
   endTime: string;
   status: AppointmentStatus;
+  paymentMethod?: PaymentMethod | null;
   notes: string | null;
   client: Client;
   service: Service;
@@ -262,6 +264,13 @@ export const api = {
   },
   async setAppointmentStatus(id: string, status: AppointmentStatus) {
     return { appointment: wrap(await supabase.from("Appointment").update({ status }).eq("id", id).select().single()) as Appointment };
+  },
+  // Completar registrando el método de pago (efectivo o tarjeta), para que la
+  // facturación del panel web pueda desglosar los ingresos correctamente.
+  async completeAppointment(id: string, paymentMethod: PaymentMethod | null) {
+    const { data, error } = await supabase.rpc("owner_complete_appointment", { p_id: id, p_method: paymentMethod });
+    if (error) throw new ApiError(400, error.message);
+    return { appointment: data as Appointment };
   },
   async getSettings() {
     return { settings: wrap(await supabase.from("NotificationSettings").select("*").single()) as NotificationSettings };

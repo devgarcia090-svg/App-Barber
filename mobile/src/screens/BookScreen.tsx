@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api, ApiError, type PublicBusiness, type PublicSlot, type Service } from "../api";
 import { DateStrip } from "../components/DateStrip";
 import { colors, radius } from "../theme";
-import { formatMoney, minutesToTimeLabel, todayStr } from "../utils";
+import { formatMoney, minutesToTimeLabel, todayStr, zonedWallTimeToDate } from "../utils";
 
 const ANY_STAFF = "any";
 
@@ -48,8 +48,7 @@ export function BookScreen() {
       Alert.alert("Ese hueco ya no está libre", "Elige otra hora.");
       return;
     }
-    const startTime = new Date(`${date}T00:00:00`);
-    startTime.setMinutes(selectedMinute);
+    const startTime = zonedWallTimeToDate(date, selectedMinute);
 
     setSubmitting(true);
     try {

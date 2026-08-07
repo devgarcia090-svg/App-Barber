@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, ApiError, type Service } from "../api";
-import { formatMoney, minutesToTimeLabel, todayStr } from "../utils";
+import { formatMoney, minutesToTimeLabel, todayStr, zonedWallTimeToDate } from "../utils";
 
 interface PublicStaff {
   id: string;
@@ -124,8 +124,7 @@ export function PublicBookingPage() {
     setSubmitting(true);
     setError(null);
     try {
-      const startTime = new Date(`${selectedDate}T00:00:00`);
-      startTime.setMinutes(selectedSlot);
+      const startTime = zonedWallTimeToDate(selectedDate, selectedSlot);
       await api.publicBook(slug, {
         staffId: staffId !== "any" ? staffId : slot.staffIds[0],
         serviceId: service.id,

@@ -1,17 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, ApiError, type Appointment, type Service, type Staff } from "../api";
-import { formatMoney, generateDaySlots, minutesToTimeLabel, type Slot } from "../utils";
-
-// Fecha (YYYY-MM-DD) y minuto del día, en hora local, a partir de un ISO.
-function localDateStr(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-function localMinute(iso: string): number {
-  const d = new Date(iso);
-  return d.getHours() * 60 + d.getMinutes();
-}
+import { dayBounds, formatMoney, generateDaySlots, minutesToTimeLabel, zonedDateParts, zonedWallTimeToDate, type Slot } from "../utils";
 
 export function EditAppointmentPage() {
   const { id } = useParams<{ id: string }>();
@@ -42,8 +32,9 @@ export function EditAppointmentPage() {
         setServices(sv.services.filter((x) => x.active));
         setStaffId(ap.staff?.id ?? "");
         setServiceId(ap.service.id);
-        setDate(localDateStr(ap.startTime));
-        setSelectedSlot(localMinute(ap.startTime));
+        const parts = zonedDateParts(ap.startTime);
+        setDate(parts.dateStr);
+        setSelectedSlot(parts.minutes);
         setNotes(ap.notes ?? "");
       })
       .catch((e) => setError(e instanceof ApiError ? e.message : "No se pudo cargar la cita"))
@@ -56,8 +47,7 @@ export function EditAppointmentPage() {
   useEffect(() => {
     if (!staffId || !date) return;
     setSelectedSlot((prev) => prev); // keep current selection across staff/date changes
-    const from = new Date(`${date}T00:00:00`).toISOString();
-    const to = new Date(`${date}T23:59:59`).toISOString();
+    const { from, to } = dayBounds(date);
     api.getAppointments({ staffId, from, to }).then((r) =>
       // Excluir la propia cita: su hueco actual debe salir como libre/seleccionable.
       setDayAppointments(r.appointments.filter((a) => a.id !== id && a.status !== "CANCELLED" && a.status !== "NO_SHOW"))
@@ -83,8 +73,7 @@ export function EditAppointmentPage() {
     setSaving(true);
     setError(null);
     try {
-      const startTime = new Date(`${date}T00:00:00`);
-      startTime.setMinutes(selectedSlot);
+      const startTime = zonedWallTimeToDate(date, selectedSlot);
       await api.rescheduleAppointment(id, { staffId, serviceId, startTime: startTime.toISOString(), notes: notes || undefined });
       navigate(`/?fecha=${date}&staffId=${staffId}`);
     } catch (err) {

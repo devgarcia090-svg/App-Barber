@@ -17,7 +17,7 @@ import { api, ApiError, type Client, type Service, type Staff } from "../api";
 import { DateStrip } from "../components/DateStrip";
 import { PrewarningBanner } from "../components/PrewarningBanner";
 import { colors, radius } from "../theme";
-import { formatMoney, generateDaySlots, todayStr, type Slot } from "../utils";
+import { dayBounds, formatMoney, generateDaySlots, todayStr, zonedWallTimeToDate, type Slot } from "../utils";
 
 function normalizePhone(phone: string): string {
   return phone.replace(/\s+/g, "");
@@ -63,8 +63,7 @@ export function NewAppointmentScreen() {
     if (!staffId) return;
     setLoadingSlots(true);
     setSelectedSlot(null);
-    const from = new Date(`${date}T00:00:00`).toISOString();
-    const to = new Date(`${date}T23:59:59`).toISOString();
+    const { from, to } = dayBounds(date);
     api
       .getAppointments({ staffId, from, to })
       .then((r) =>
@@ -108,8 +107,7 @@ export function NewAppointmentScreen() {
         const { client } = await api.createClient({ name: clientName, phone: clientPhone, email: clientEmail || undefined });
         clientId = client.id;
       }
-      const startTime = new Date(`${date}T00:00:00`);
-      startTime.setMinutes(selectedSlot);
+      const startTime = zonedWallTimeToDate(date, selectedSlot);
       await api.createAppointment({ staffId, clientId, serviceId, startTime: startTime.toISOString(), notes: notes || undefined });
 
       setClientPhone("");

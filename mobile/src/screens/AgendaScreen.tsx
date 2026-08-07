@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -11,7 +12,7 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { api, ApiError, type Appointment, type AppointmentStatus, type Staff } from "../api";
+import { api, ApiError, type Appointment, type AppointmentStatus, type PaymentMethod, type Staff } from "../api";
 import { ReliabilityBadge } from "../components/ReliabilityBadge";
 import { PrewarningBanner } from "../components/PrewarningBanner";
 import { DateStrip } from "../components/DateStrip";
@@ -45,6 +46,7 @@ export function AgendaScreen() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [payingFor, setPayingFor] = useState<Appointment | null>(null);
 
   useEffect(() => {
     api.getStaff().then((r) => setStaff(r.staff.filter((s) => s.active)));
@@ -73,6 +75,17 @@ export function AgendaScreen() {
       setAppointments((prev) => prev.map((a) => (a.id === appointment.id ? { ...a, ...appointment } : a)));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo actualizar la cita");
+    }
+  }
+
+  async function complete(appointmentId: string, method: PaymentMethod | null) {
+    try {
+      const { appointment } = await api.completeAppointment(appointmentId, method);
+      setAppointments((prev) => prev.map((a) => (a.id === appointment.id ? { ...a, ...appointment } : a)));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo completar la cita");
+    } finally {
+      setPayingFor(null);
     }
   }
 
@@ -137,18 +150,47 @@ export function AgendaScreen() {
                       <Pressable
                         key={next.status}
                         style={({ pressed }) => [styles.actionBtn, next.danger && styles.actionBtnDanger, pressed && { opacity: 0.7 }]}
-                        onPress={() => updateStatus(item.id, next.status)}
+                        onPress={() => (next.status === "COMPLETED" ? setPayingFor(item) : updateStatus(item.id, next.status))}
                       >
                         <Text style={[styles.actionText, next.danger && { color: colors.red }]}>{next.label}</Text>
                       </Pressable>
                     ))}
                   </View>
                 )}
+                {item.status === "COMPLETED" && item.paymentMethod && (
+                  <Text style={styles.payTag}>{item.paymentMethod === "CASH" ? "💶 Efectivo" : "💳 Tarjeta"}</Text>
+                )}
               </View>
             );
           }}
         />
       )}
+
+      <Modal visible={!!payingFor} transparent animationType="fade" onRequestClose={() => setPayingFor(null)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setPayingFor(null)}>
+          <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.modalTitle}>¿Cómo ha pagado?</Text>
+            {payingFor && (
+              <Text style={styles.modalSubtitle}>
+                {payingFor.client.name} · {payingFor.service.name} · {formatMoney(payingFor.service.priceCents)}
+              </Text>
+            )}
+            <View style={styles.payOptions}>
+              <Pressable style={styles.payBtn} onPress={() => payingFor && complete(payingFor.id, "CASH")}>
+                <Text style={styles.payEmoji}>💶</Text>
+                <Text style={styles.payLabel}>Efectivo</Text>
+              </Pressable>
+              <Pressable style={styles.payBtn} onPress={() => payingFor && complete(payingFor.id, "CARD")}>
+                <Text style={styles.payEmoji}>💳</Text>
+                <Text style={styles.payLabel}>Tarjeta</Text>
+              </Pressable>
+            </View>
+            <Pressable style={styles.modalSkip} onPress={() => payingFor && complete(payingFor.id, null)}>
+              <Text style={styles.modalSkipText}>Completar sin especificar</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -216,4 +258,39 @@ const styles = StyleSheet.create({
     backgroundColor: colors.redSoft,
   },
   actionText: { fontSize: 12.5, fontWeight: "700", color: colors.gold },
+  payTag: { color: colors.muted, fontSize: 12.5, marginTop: 4 },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.68)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 380,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 22,
+    alignItems: "center",
+  },
+  modalTitle: { fontSize: 17, fontWeight: "800", color: colors.text, marginBottom: 6, textAlign: "center" },
+  modalSubtitle: { fontSize: 13, color: colors.muted, marginBottom: 18, textAlign: "center" },
+  payOptions: { flexDirection: "row", gap: 12, width: "100%" },
+  payBtn: {
+    flex: 1,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.goldBorder,
+    borderRadius: radius.md,
+    paddingVertical: 18,
+    alignItems: "center",
+    gap: 6,
+  },
+  payEmoji: { fontSize: 28 },
+  payLabel: { fontSize: 14, fontWeight: "700", color: colors.text },
+  modalSkip: { marginTop: 16, paddingVertical: 8 },
+  modalSkipText: { color: colors.muted, fontSize: 13 },
 });

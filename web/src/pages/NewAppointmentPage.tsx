@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, ApiError, type Appointment, type Client, type Service, type Staff } from "../api";
 import { PrewarningBanner } from "../components/PrewarningBanner";
-import { formatMoney, generateDaySlots, todayStr, type Slot } from "../utils";
+import { dayBounds, formatMoney, generateDaySlots, todayStr, zonedWallTimeToDate, type Slot } from "../utils";
 
 function normalizePhone(phone: string): string {
   return phone.replace(/\s+/g, "");
@@ -57,8 +57,7 @@ export function NewAppointmentPage() {
     // No borrar la hora preseleccionada (venida por URL) en la primera carga.
     if (skipReset.current) skipReset.current = false;
     else setSelectedSlot(null);
-    const from = new Date(`${date}T00:00:00`).toISOString();
-    const to = new Date(`${date}T23:59:59`).toISOString();
+    const { from, to } = dayBounds(date);
     api
       .getAppointments({ staffId, from, to })
       .then((r) => setDayAppointments(r.appointments.filter((a) => a.status !== "CANCELLED" && a.status !== "NO_SHOW")))
@@ -104,8 +103,7 @@ export function NewAppointmentPage() {
         clientId = client.id;
       }
 
-      const startTime = new Date(`${date}T00:00:00`);
-      startTime.setMinutes(selectedSlot);
+      const startTime = zonedWallTimeToDate(date, selectedSlot);
       await api.createAppointment({ staffId, clientId, serviceId, startTime: startTime.toISOString(), notes: notes || undefined });
       navigate(`/?fecha=${date}&staffId=${staffId}`);
     } catch (err) {

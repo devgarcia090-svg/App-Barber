@@ -21,6 +21,8 @@ export interface OwnerStats {
   to: string;
   totals: {
     revenueCents: number;
+    revenueCashCents: number;
+    revenueCardCents: number;
     completed: number;
     noShow: number;
     cancelled: number;
@@ -40,6 +42,7 @@ export interface Invoice {
   serviceName: string;
   staffName: string;
   priceCents: number;
+  paymentMethod: PaymentMethod | null;
 }
 
 export interface LoyaltyClient {
@@ -59,6 +62,7 @@ export interface LoyaltyOverview {
 
 export type ReliabilityStatus = "RELIABLE" | "WATCH" | "RISKY";
 export type AppointmentStatus = "PENDING" | "CONFIRMED" | "CANCELLED" | "NO_SHOW" | "COMPLETED";
+export type PaymentMethod = "CASH" | "CARD";
 
 export interface Prewarning {
   status: ReliabilityStatus;
@@ -111,6 +115,7 @@ export interface Appointment {
   startTime: string;
   endTime: string;
   status: AppointmentStatus;
+  paymentMethod?: PaymentMethod | null;
   notes: string | null;
   client: Client;
   service: Service;
@@ -322,6 +327,12 @@ export const api = {
   },
   async setAppointmentStatus(id: string, status: AppointmentStatus) {
     const data = wrap(await supabase.from("Appointment").update({ status }).eq("id", id).select().single());
+    return { appointment: data as Appointment };
+  },
+  // Completar registrando el método de pago (efectivo o tarjeta).
+  async completeAppointment(id: string, paymentMethod: PaymentMethod | null) {
+    const { data, error } = await supabase.rpc("owner_complete_appointment", { p_id: id, p_method: paymentMethod });
+    if (error) throw new ApiError(400, error.message);
     return { appointment: data as Appointment };
   },
 

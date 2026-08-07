@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { api, ApiError, type Appointment, type AppointmentStatus, type Staff } from "../api";
+import { api, ApiError, type Appointment, type AppointmentStatus, type PaymentMethod, type Staff } from "../api";
 import { ReliabilityBadge } from "../components/ReliabilityBadge";
 import { PrewarningBanner } from "../components/PrewarningBanner";
 import { addDaysToDateStr, dayBounds, formatDateHuman, formatMoney, formatTime, STATUS_LABELS, todayStr } from "../utils";
@@ -26,6 +26,8 @@ export function AgendaPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Cita pendiente de elegir método de pago al completarla.
+  const [payingFor, setPayingFor] = useState<Appointment | null>(null);
 
   useEffect(() => {
     api.getStaff().then((r) => setStaff(r.staff.filter((s) => s.active)));
@@ -62,6 +64,16 @@ export function AgendaPage() {
       setAppointments((prev) => prev.map((a) => (a.id === appointment.id ? { ...a, ...appointment } : a)));
     } catch (err) {
       alert(err instanceof ApiError ? err.message : "No se pudo actualizar la cita");
+    }
+  }
+
+  async function complete(appointmentId: string, method: PaymentMethod | null) {
+    try {
+      const { appointment } = await api.completeAppointment(appointmentId, method);
+      setAppointments((prev) => prev.map((a) => (a.id === appointment.id ? { ...a, ...appointment } : a)));
+      setPayingFor(null);
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : "No se pudo completar la cita");
     }
   }
 
@@ -124,14 +136,43 @@ export function AgendaPage() {
             </div>
             <div className="appointment-actions">
               {(NEXT_STATUS[appt.status] ?? []).map((next) => (
-                <button key={next.status} className="btn-small" onClick={() => updateStatus(appt.id, next.status)}>
+                <button
+                  key={next.status}
+                  className="btn-small"
+                  onClick={() => (next.status === "COMPLETED" ? setPayingFor(appt) : updateStatus(appt.id, next.status))}
+                >
                   {next.label}
                 </button>
               ))}
+              {appt.status === "COMPLETED" && appt.paymentMethod && (
+                <span className="pay-tag">{appt.paymentMethod === "CASH" ? "💶 Efectivo" : "💳 Tarjeta"}</span>
+              )}
             </div>
           </div>
         ))}
       </div>
+
+      {payingFor && (
+        <div className="modal-overlay" onClick={() => setPayingFor(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <h2>¿Cómo ha pagado?</h2>
+            <p className="muted">
+              {payingFor.client.name} · {payingFor.service.name} · {formatMoney(payingFor.service.priceCents)}
+            </p>
+            <div className="pay-options">
+              <button className="pay-btn" onClick={() => complete(payingFor.id, "CASH")}>
+                <span className="pay-emoji">💶</span> Efectivo
+              </button>
+              <button className="pay-btn" onClick={() => complete(payingFor.id, "CARD")}>
+                <span className="pay-emoji">💳</span> Tarjeta
+              </button>
+            </div>
+            <button className="btn-ghost" onClick={() => complete(payingFor.id, null)}>
+              Completar sin especificar
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

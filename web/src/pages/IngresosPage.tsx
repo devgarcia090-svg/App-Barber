@@ -21,6 +21,12 @@ function formatDay(iso: string): string {
   return new Date(iso + "T00:00:00").toLocaleDateString("es-ES", { day: "2-digit", month: "short" });
 }
 
+function payLabel(m: string | null): string {
+  if (m === "CASH") return "Efectivo";
+  if (m === "CARD") return "Tarjeta";
+  return "—";
+}
+
 export function IngresosPage() {
   const [range, setRange] = useState(monthRange(0));
   const [stats, setStats] = useState<OwnerStats | null>(null);
@@ -48,13 +54,14 @@ export function IngresosPage() {
   const maxDay = useMemo(() => Math.max(1, ...(stats?.byDay ?? []).map((d) => d.revenueCents)), [stats]);
 
   function exportCsv() {
-    const header = ["Fecha", "Cliente", "Teléfono", "Servicio", "Barbero", "Importe (€)"];
+    const header = ["Fecha", "Cliente", "Teléfono", "Servicio", "Barbero", "Pago", "Importe (€)"];
     const rows = invoices.map((i) => [
       new Date(i.date).toLocaleString("es-ES"),
       i.clientName,
       i.clientPhone,
       i.serviceName,
       i.staffName,
+      payLabel(i.paymentMethod),
       (i.priceCents / 100).toFixed(2).replace(".", ","),
     ]);
     const csv = [header, ...rows]
@@ -114,6 +121,9 @@ export function IngresosPage() {
             <div className="kpi kpi-strong">
               <span className="kpi-label">Ingresos</span>
               <span className="kpi-value">{euros(stats.totals.revenueCents)}</span>
+              <span className="kpi-split">
+                💶 {euros(stats.totals.revenueCashCents)} · 💳 {euros(stats.totals.revenueCardCents)}
+              </span>
             </div>
             <div className="kpi">
               <span className="kpi-label">Citas completadas</span>
@@ -222,6 +232,7 @@ export function IngresosPage() {
                     <th>Cliente</th>
                     <th>Servicio</th>
                     <th>Barbero</th>
+                    <th>Pago</th>
                     <th>Importe</th>
                   </tr>
                 </thead>
@@ -232,6 +243,9 @@ export function IngresosPage() {
                       <td>{i.clientName}</td>
                       <td>{i.serviceName}</td>
                       <td>{i.staffName}</td>
+                      <td>
+                        {i.paymentMethod === "CASH" ? "💶 Efectivo" : i.paymentMethod === "CARD" ? "💳 Tarjeta" : "—"}
+                      </td>
                       <td>{euros(i.priceCents)}</td>
                     </tr>
                   ))}

@@ -1056,3 +1056,50 @@ input[type="checkbox"] {
   font-size: 0.9rem;
   margin: 0.9rem 0 1.3rem;
 }
+
+/* ---- Método de pago (fase 16) ---- */
+.kpi-split { font-size: 0.78rem; color: var(--muted); margin-top: 0.1rem; }
+.pay-tag {
+  font-size: 0.78rem;
+  color: var(--muted);
+  align-self: center;
+  white-space: nowrap;
+}
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.68);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 1rem;
+}
+.modal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 1.6rem;
+  width: 100%;
+  max-width: 380px;
+  text-align: center;
+}
+.modal-card h2 { margin-top: 0; }
+.pay-options { display: flex; gap: 0.8rem; margin: 1.2rem 0 0.8rem; }
+.pay-btn {
+  flex: 1;
+  background: var(--surface-2);
+  border: 1px solid var(--gold-border);
+  border-radius: 14px;
+  color: var(--text);
+  padding: 1.1rem 0.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+.pay-btn:hover { background: var(--gold-soft); }
+.pay-emoji { font-size: 1.7rem; }

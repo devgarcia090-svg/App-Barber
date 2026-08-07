@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { ApiError } from "../api";
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { login, initError } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,6 +34,7 @@ export function LoginPage() {
         <p className="auth-sub">Llano de Brujas · Murcia</p>
       </div>
       <form className="auth-card" onSubmit={handleSubmit}>
+        {initError && !error && <div className="alert-error">{initError}</div>}
         {error && <div className="alert-error">{error}</div>}
         <label>
           Email

@@ -50,9 +50,15 @@ export function AgendaPage() {
   const [payingFor, setPayingFor] = useState<Appointment | null>(null);
   const [selected, setSelected] = useState<Appointment | null>(null);
   const [moving, setMoving] = useState(false);
+  // Evita que un doble clic dispare dos cambios de estado a la vez sobre la
+  // misma cita (p.ej. "Completada" y "No presentado" a la vez).
+  const [statusBusy, setStatusBusy] = useState(false);
 
   useEffect(() => {
-    api.getStaff().then((r) => setStaff(r.staff.filter((s) => s.active)));
+    api
+      .getStaff()
+      .then((r) => setStaff(r.staff.filter((s) => s.active)))
+      .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar la lista de barberos"));
   }, []);
 
   const load = useCallback(() => {
@@ -83,15 +89,21 @@ export function AgendaPage() {
   }
 
   async function updateStatus(id: string, status: AppointmentStatus) {
+    if (statusBusy) return;
+    setStatusBusy(true);
     try {
       const { appointment } = await api.setAppointmentStatus(id, status);
       setAppointments((prev) => prev.map((a) => (a.id === appointment.id ? { ...a, ...appointment } : a)));
       setSelected(null);
     } catch (err) {
       alert(err instanceof ApiError ? err.message : "No se pudo actualizar la cita");
+    } finally {
+      setStatusBusy(false);
     }
   }
   async function complete(id: string, method: PaymentMethod | null) {
+    if (statusBusy) return;
+    setStatusBusy(true);
     try {
       const { appointment } = await api.completeAppointment(id, method);
       setAppointments((prev) => prev.map((a) => (a.id === appointment.id ? { ...a, ...appointment } : a)));
@@ -99,6 +111,8 @@ export function AgendaPage() {
       setSelected(null);
     } catch (err) {
       alert(err instanceof ApiError ? err.message : "No se pudo completar la cita");
+    } finally {
+      setStatusBusy(false);
     }
   }
 
@@ -178,6 +192,14 @@ export function AgendaPage() {
     let start = Math.round((m - d.offset) / SNAP) * SNAP;
     start = Math.max(bounds.start, Math.min(start, bounds.end - d.dur));
     setPreview({ id: d.appt.id, minute: start, staffId: staffAt(e.clientX) ?? d.appt.staff?.id ?? "" });
+  }
+
+  // Si el sistema cancela el puntero a media arrastrada (gesto táctil, cambio
+  // de pestaña...), soltar el estado en vez de dejar la vista "congelada" en
+  // modo arrastre.
+  function onApptPointerCancel() {
+    dragRef.current = null;
+    setPreview(null);
   }
 
   async function onApptPointerUp(a: Appointment) {
@@ -369,6 +391,7 @@ export function AgendaPage() {
                             onPointerDown={(e) => onApptPointerDown(e, a)}
                             onPointerMove={onApptPointerMove}
                             onPointerUp={() => onApptPointerUp(a)}
+                            onPointerCancel={onApptPointerCancel}
                             onClick={() => {
                               if (!isMovable(a)) setSelected(a);
                             }}
@@ -421,6 +444,7 @@ export function AgendaPage() {
                 <button
                   key={next.status}
                   className="btn-small"
+                  disabled={statusBusy}
                   onClick={() => (next.status === "COMPLETED" ? setPayingFor(selected) : updateStatus(selected.id, next.status))}
                 >
                   {next.label}
@@ -442,14 +466,14 @@ export function AgendaPage() {
               {payingFor.client.name} · {payingFor.service.name} · {formatMoney(payingFor.service.priceCents)}
             </p>
             <div className="pay-options">
-              <button className="pay-btn" onClick={() => complete(payingFor.id, "CASH")}>
+              <button className="pay-btn" disabled={statusBusy} onClick={() => complete(payingFor.id, "CASH")}>
                 <span className="pay-emoji">💶</span> Efectivo
               </button>
-              <button className="pay-btn" onClick={() => complete(payingFor.id, "CARD")}>
+              <button className="pay-btn" disabled={statusBusy} onClick={() => complete(payingFor.id, "CARD")}>
                 <span className="pay-emoji">💳</span> Tarjeta
               </button>
             </div>
-            <button className="btn-ghost" onClick={() => complete(payingFor.id, null)}>
+            <button className="btn-ghost" disabled={statusBusy} onClick={() => complete(payingFor.id, null)}>
               Completar sin especificar
             </button>
           </div>

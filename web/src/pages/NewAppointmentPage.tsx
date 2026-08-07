@@ -33,17 +33,24 @@ export function NewAppointmentPage() {
   const [loadingSlots, setLoadingSlots] = useState(false);
 
   useEffect(() => {
-    api.getStaff().then((r) => {
-      const active = r.staff.filter((s) => s.active);
-      setStaff(active);
-      if (!staffId && active[0]) setStaffId(active[0].id);
-    });
-    api.getServices().then((r) => {
-      const active = r.services.filter((s) => s.active);
-      setServices(active);
-      if (active[0]) setServiceId((prev) => prev || active[0].id);
-    });
-    api.getClients().then((r) => setClients(r.clients));
+    const onFail = () => setError("No se pudieron cargar los datos. Revisa tu conexión y recarga la página.");
+    api
+      .getStaff()
+      .then((r) => {
+        const active = r.staff.filter((s) => s.active);
+        setStaff(active);
+        if (!staffId && active[0]) setStaffId(active[0].id);
+      })
+      .catch(onFail);
+    api
+      .getServices()
+      .then((r) => {
+        const active = r.services.filter((s) => s.active);
+        setServices(active);
+        if (active[0]) setServiceId((prev) => prev || active[0].id);
+      })
+      .catch(onFail);
+    api.getClients().then((r) => setClients(r.clients)).catch(onFail);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

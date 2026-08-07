@@ -48,10 +48,13 @@ export function EditAppointmentPage() {
     if (!staffId || !date) return;
     setSelectedSlot((prev) => prev); // keep current selection across staff/date changes
     const { from, to } = dayBounds(date);
-    api.getAppointments({ staffId, from, to }).then((r) =>
-      // Excluir la propia cita: su hueco actual debe salir como libre/seleccionable.
-      setDayAppointments(r.appointments.filter((a) => a.id !== id && a.status !== "CANCELLED" && a.status !== "NO_SHOW"))
-    );
+    api
+      .getAppointments({ staffId, from, to })
+      .then((r) =>
+        // Excluir la propia cita: su hueco actual debe salir como libre/seleccionable.
+        setDayAppointments(r.appointments.filter((a) => a.id !== id && a.status !== "CANCELLED" && a.status !== "NO_SHOW"))
+      )
+      .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudieron cargar los huecos ocupados"));
   }, [staffId, date, id]);
 
   const slots: Slot[] = useMemo(() => {

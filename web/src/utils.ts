@@ -2,8 +2,18 @@ export function formatMoney(cents: number): string {
   return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(cents / 100);
 }
 
+// Mostrar siempre la hora de Madrid (no la del huso del dispositivo): un
+// dato guardado correctamente en UTC igualmente se vería mal si aquí no se
+// fija la zona — es la otra mitad del mismo bug (ver zonedWallTimeToDate).
 export function formatTime(iso: string): string {
-  return new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+  return new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" }).format(new Date(iso));
+}
+
+// Fecha (y opcionalmente hora) de un instante ISO, en Europe/Madrid — para no
+// mostrar el día siguiente/anterior a un visitante en otro huso horario cerca
+// de medianoche.
+export function formatDateEs(iso: string, options?: Intl.DateTimeFormatOptions): string {
+  return new Intl.DateTimeFormat("es-ES", { ...options, timeZone: "Europe/Madrid" }).format(new Date(iso));
 }
 
 export function formatDateHuman(dateStr: string): string {

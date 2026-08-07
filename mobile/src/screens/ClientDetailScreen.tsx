@@ -6,7 +6,7 @@ import { api, type Appointment, type Client } from "../api";
 import { ReliabilityBadge } from "../components/ReliabilityBadge";
 import { PrewarningBanner } from "../components/PrewarningBanner";
 import { colors, radius } from "../theme";
-import { formatMoney, formatTime, STATUS_LABELS } from "../utils";
+import { formatDateEs, formatMoney, formatTime, STATUS_LABELS } from "../utils";
 
 type ParamList = { ClientDetail: { id: string } };
 
@@ -55,7 +55,7 @@ export function ClientDetailScreen() {
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={styles.rowService}>{item.service.name}</Text>
               <Text style={styles.muted}>
-                {new Date(item.startTime).toLocaleDateString("es-ES")} · {formatTime(item.startTime)}
+                {formatDateEs(item.startTime)} · {formatTime(item.startTime)}
               </Text>
             </View>
             <View style={{ alignItems: "flex-end", gap: 2 }}>

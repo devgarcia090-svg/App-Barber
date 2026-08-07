@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError, type Invoice, type OwnerStats } from "../api";
+import { formatDateEs } from "../utils";
 
 function euros(cents: number): string {
   return (cents / 100).toLocaleString("es-ES", { style: "currency", currency: "EUR" });
 }
 
+// Componentes locales de la fecha, sin pasar por toISOString(): construir un
+// preset como "este mes" a partir de un Date local y luego formatearlo a UTC
+// puede desplazar un día en husos horarios adelantados a UTC.
 function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 // Presets de rango: este mes, mes pasado, este año.
@@ -61,7 +65,7 @@ export function IngresosPage() {
   function exportCsv() {
     const header = ["Fecha", "Cliente", "Teléfono", "Servicio", "Barbero", "Pago", "Importe (€)"];
     const rows = invoices.map((i) => [
-      new Date(i.date).toLocaleString("es-ES"),
+      formatDateEs(i.date, { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }),
       i.clientName,
       i.clientPhone,
       i.serviceName,
@@ -108,15 +112,18 @@ export function IngresosPage() {
         <div className="range-inputs">
           <label>
             Desde
-            <input type="date" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} />
+            <input type="date" value={range.from} max={range.to} onChange={(e) => setRange({ ...range, from: e.target.value })} />
           </label>
           <label>
             Hasta
-            <input type="date" value={range.to} onChange={(e) => setRange({ ...range, to: e.target.value })} />
+            <input type="date" value={range.to} min={range.from} onChange={(e) => setRange({ ...range, to: e.target.value })} />
           </label>
         </div>
       </div>
 
+      {range.from > range.to && (
+        <div className="alert-error">La fecha "Desde" es posterior a "Hasta": no habrá resultados. Corrige el rango.</div>
+      )}
       {error && <div className="alert-error">{error}</div>}
       {loading && <p className="muted">Cargando...</p>}
 
@@ -248,7 +255,7 @@ export function IngresosPage() {
                 <tbody>
                   {invoices.map((i) => (
                     <tr key={i.id}>
-                      <td>{new Date(i.date).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit" })}</td>
+                      <td>{formatDateEs(i.date, { day: "2-digit", month: "2-digit", year: "2-digit" })}</td>
                       <td>{i.clientName}</td>
                       <td>{i.serviceName}</td>
                       <td>{i.staffName}</td>

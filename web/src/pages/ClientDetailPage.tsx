@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api, type Appointment, type Client } from "../api";
 import { ReliabilityBadge } from "../components/ReliabilityBadge";
 import { PrewarningBanner } from "../components/PrewarningBanner";
-import { formatMoney, formatTime, STATUS_LABELS } from "../utils";
+import { formatDateEs, formatMoney, formatTime, STATUS_LABELS } from "../utils";
 
 export function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -63,7 +63,7 @@ export function ClientDetailPage() {
           {client.appointments.map((a) => (
             <tr key={a.id}>
               <td>
-                {new Date(a.startTime).toLocaleDateString("es-ES")} {formatTime(a.startTime)}
+                {formatDateEs(a.startTime)} {formatTime(a.startTime)}
               </td>
               <td>{a.service.name}</td>
               <td>{formatMoney(a.service.priceCents)}</td>

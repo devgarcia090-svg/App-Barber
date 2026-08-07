@@ -1340,6 +1340,7 @@ input[type="checkbox"] {
   gap: 0.4rem;
 }
 .pay-btn:hover { background: var(--gold-soft); }
+.pay-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .pay-emoji { font-size: 1.7rem; }
 
 /* ---- Agenda: línea de tiempo con huecos libres (fase 17) ---- */

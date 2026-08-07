@@ -1551,3 +1551,23 @@ input[type="checkbox"] {
   border-radius: 999px;
   background: var(--red);
 }
+
+/* ---- Arrastrar citas en el calendario (fase 19) ---- */
+.cal-appt.movable {
+  cursor: grab;
+  touch-action: none; /* necesario para arrastrar con el dedo */
+}
+.cal-appt.dragging {
+  cursor: grabbing;
+  z-index: 6;
+  opacity: 0.95;
+  transform: scale(1.02);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--gold-border);
+}
+/* mientras se arrastra, no resaltar los huecos ni permitir su + */
+.cal-dragging .cal-free:hover { background: transparent; border-color: transparent; }
+.cal-dragging .cal-free-plus { opacity: 0; }
+/* columna sobre la que se va a soltar */
+.cal-col.target { background-color: rgba(216, 173, 92, 0.045); }
+.cal-colhead.target { color: var(--gold); }

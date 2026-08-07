@@ -39,14 +39,21 @@ export function PrivacyPage() {
 
       <h2>2. Qué datos tratamos</h2>
       <ul>
-        <li><b>Clientes:</b> nombre, teléfono, y correo electrónico (opcional). Historial de citas e
-          información de asistencia (citas completadas, ausencias y cancelaciones tardías) para la gestión de
-          las reservas.</li>
+        <li><b>Clientes:</b> nombre, teléfono, y correo electrónico. Historial de citas e información de
+          asistencia (citas completadas, ausencias y cancelaciones tardías) para la gestión de las reservas.
+          Si el negocio activa la tarjeta de fidelización, el número de visitas completadas y los premios
+          obtenidos.</li>
+        <li><b>Método de pago de cada cita:</b> si has pagado en efectivo o con tarjeta, para la contabilidad
+          del negocio. No procesamos ni almacenamos datos de tarjetas bancarias: el pago se realiza
+          físicamente en el local, esto es solo una anotación de qué medio usaste.</li>
         <li><b>Notificaciones:</b> si las activas, un identificador (token) de tu dispositivo para enviarte
           recordatorios de tus citas.</li>
         <li><b>Titular del negocio:</b> correo electrónico y credenciales de acceso.</li>
+        <li><b>Técnicos:</b> tu sesión iniciada se guarda en el almacenamiento local del navegador
+          (localStorage) para no tener que volver a iniciar sesión en cada visita. No usamos cookies de
+          publicidad ni de terceros.</li>
       </ul>
-      <p>No recogemos datos de pago dentro de la aplicación ni categorías especiales de datos.</p>
+      <p>No recogemos datos de tarjetas bancarias ni categorías especiales de datos.</p>
 
       <h2>3. Finalidad y base jurídica</h2>
       <ul>
@@ -85,8 +92,11 @@ export function PrivacyPage() {
 
       <h2>8. Seguridad</h2>
       <p>
-        Las contraseñas se almacenan cifradas (bcrypt) y el acceso a los datos está restringido por reglas de
-        seguridad a nivel de fila, de modo que cada negocio solo accede a su propia información.
+        Las contraseñas nunca se almacenan en nuestra base de datos: el inicio de sesión lo gestiona
+        directamente Supabase Auth, que las guarda cifradas conforme a los estándares del sector. El acceso a
+        los datos está restringido por reglas de seguridad a nivel de fila, de modo que cada negocio solo
+        accede a su propia información y cada cliente solo ve sus propias citas. La aplicación no carga
+        fuentes ni recursos de terceros: todo el contenido se sirve desde nuestro propio dominio.
       </p>
 
       <h2>9. Cambios</h2>
@@ -108,9 +118,11 @@ export function TermsPage() {
 
       <h2>2. Cuenta</h2>
       <p>
-        Para reservar puedes crear una cuenta con tu teléfono y una contraseña. Eres responsable de la
-        veracidad de tus datos y de mantener la confidencialidad de tu contraseña. Puedes eliminar tu cuenta
-        en cualquier momento desde la app.
+        Puedes reservar sin cuenta indicando tu nombre y teléfono, o crear una cuenta con tu correo
+        electrónico y una contraseña (o mediante un enlace de acceso que te enviamos por email) para consultar
+        tu historial de citas y gestionar tus reservas más fácilmente. Eres responsable de la veracidad de tus
+        datos y de mantener la confidencialidad de tu contraseña. Puedes eliminar tu cuenta en cualquier
+        momento desde la app.
       </p>
 
       <h2>3. Reservas y cancelaciones</h2>

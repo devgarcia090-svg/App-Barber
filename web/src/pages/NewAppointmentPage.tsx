@@ -122,7 +122,10 @@ export function NewAppointmentPage() {
 
   return (
     <div className="page-narrow">
-      <h1>Nueva cita</h1>
+      <button className="btn-ghost" onClick={() => navigate(-1)}>
+        ‹ Volver
+      </button>
+      <h1 style={{ marginTop: "1rem" }}>Nueva cita</h1>
       <p className="muted">Ideal para reservar por teléfono: elige un hueco libre y solo hace falta el nombre y el número del cliente.</p>
       <form className="card-form" onSubmit={handleSubmit}>
         {error && <div className="alert-error">{error}</div>}

@@ -100,6 +100,7 @@ export interface NotificationSettings {
   smsEnabled: boolean;
   barberPrewarningEnabled: boolean;
   barberPrewarningHoursBefore: string;
+  sameDayCancelAlertEnabled: boolean;
 }
 
 export class ApiError extends Error {
@@ -188,6 +189,11 @@ export const api = {
     });
     if (e3) throw new ApiError(400, translateBookingError(e3.message));
     return { role: "client", client: c as ClientAccount };
+  },
+  // Token de push del dueño, para el aviso de "cancelación de hoy".
+  async registerOwnerPushToken(token: string | null) {
+    const { error } = await supabase.rpc("owner_set_push_token", { p_token: token });
+    if (error) throw new ApiError(400, error.message);
   },
   // Owner account deletion (the owner is created in the Supabase dashboard).
   // Uses the RPC so the auth.users row is also removed, not just the business.

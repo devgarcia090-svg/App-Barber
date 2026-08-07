@@ -116,6 +116,20 @@ export function SettingsPage() {
           </label>
         </div>
 
+        <h2>Cancelaciones de última hora</h2>
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            checked={settings.sameDayCancelAlertEnabled}
+            onChange={(e) => setSettings({ ...settings, sameDayCancelAlertEnabled: e.target.checked })}
+          />
+          Avisarme por notificación push si cancelan una cita de hoy
+        </label>
+        <p className="muted" style={{ fontSize: "0.8rem", marginTop: "-0.4rem" }}>
+          Para recibirlo, activa las notificaciones en la app móvil (Ajustes → Avisos en tu móvil). Así puedes
+          rellenar el hueco al momento.
+        </p>
+
         <h2>Aviso al barbero sobre clientes con historial de faltas</h2>
         <label className="checkbox-label">
           <input

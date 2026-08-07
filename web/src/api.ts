@@ -133,6 +133,7 @@ export interface NotificationSettings {
   smsEnabled: boolean;
   barberPrewarningEnabled: boolean;
   barberPrewarningHoursBefore: string;
+  sameDayCancelAlertEnabled: boolean;
 }
 
 export class ApiError extends Error {

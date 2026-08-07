@@ -1,15 +1,46 @@
 import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import * as Notifications from "expo-notifications";
+import Constants from "expo-constants";
 import { api, ApiError, type NotificationSettings } from "../api";
 import { colors, radius } from "../theme";
 
 export function SettingsScreen() {
   const [settings, setSettings] = useState<NotificationSettings | null>(null);
   const [saving, setSaving] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
 
   useEffect(() => {
     api.getSettings().then((r) => setSettings(r.settings));
+    Notifications.getPermissionsAsync().then((r) => setPushEnabled(r.granted));
   }, []);
+
+  async function toggleOwnerPush(value: boolean) {
+    setPushBusy(true);
+    try {
+      if (value) {
+        const perm = await Notifications.requestPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert("Permiso denegado", "Activa las notificaciones desde los ajustes del teléfono.");
+          return;
+        }
+        const projectId =
+          Constants.expoConfig?.extra?.eas?.projectId ??
+          (Constants as unknown as { easConfig?: { projectId?: string } }).easConfig?.projectId;
+        const token = (await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined)).data;
+        await api.registerOwnerPushToken(token);
+        setPushEnabled(true);
+      } else {
+        await api.registerOwnerPushToken(null);
+        setPushEnabled(false);
+      }
+    } catch {
+      Alert.alert("Aviso", "No se pudo activar las notificaciones push en este dispositivo todavía.");
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   async function save() {
     if (!settings) return;
@@ -76,6 +107,22 @@ export function SettingsScreen() {
         />
       </View>
 
+      <Text style={styles.section}>AVISOS EN TU MÓVIL</Text>
+      <View style={styles.card}>
+        <SwitchRow
+          label="Recibir notificaciones en este dispositivo"
+          value={pushEnabled}
+          onChange={toggleOwnerPush}
+          disabled={pushBusy}
+        />
+        <SwitchRow
+          label="Avisarme si cancelan una cita de hoy"
+          value={settings.sameDayCancelAlertEnabled}
+          onChange={(v) => setSettings({ ...settings, sameDayCancelAlertEnabled: v })}
+        />
+        <Text style={styles.label}>Para poder rellenar el hueco al momento (ej. en Instagram) en cuanto te cancelen.</Text>
+      </View>
+
       <Pressable
         style={({ pressed }) => [styles.button, pressed && { backgroundColor: colors.goldDark }]}
         onPress={save}
@@ -86,13 +133,24 @@ export function SettingsScreen() {
     </ScrollView>
   );
 
-  function SwitchRow({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+  function SwitchRow({
+    label,
+    value,
+    onChange,
+    disabled,
+  }: {
+    label: string;
+    value: boolean;
+    onChange: (v: boolean) => void;
+    disabled?: boolean;
+  }) {
     return (
       <View style={styles.switchRow}>
         <Text style={{ color: colors.text, fontSize: 14.5 }}>{label}</Text>
         <Switch
           value={value}
           onValueChange={onChange}
+          disabled={disabled}
           trackColor={{ true: colors.goldDark, false: colors.border }}
           thumbColor={value ? colors.gold : colors.muted}
         />

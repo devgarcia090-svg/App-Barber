@@ -1,21 +1,15 @@
 -- =============================================================================
 -- App-Barber — SETUP COMPLETO PARA SUPABASE (pegar en SQL Editor y pulsar RUN)
---
--- Esto BORRA el esquema actual (el viejo de Prisma) y crea el nuevo completo:
--- tablas + RLS + políticas + funciones (login unificado, reservas,
--- recordatorios) + datos de ejemplo. Ejecutar UNA vez en un proyecto sin datos.
+-- Borra el esquema actual y crea todo: tablas + RLS + funciones + invitaciones
+-- + enlace mágico + datos de ejemplo. Ejecutar UNA vez en un proyecto sin datos.
 -- =============================================================================
 
--- 1) Borrar el esquema público viejo (Prisma) y dejarlo limpio.
 DROP SCHEMA IF EXISTS public CASCADE;
 CREATE SCHEMA public;
 GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
 GRANT ALL ON SCHEMA public TO postgres, service_role;
 
-
--- ============================================================
--- 20260711120000_init.sql
--- ============================================================
+-- ==== 20260711120000_init ====
 -- =============================================================================
 -- App-Barber — Supabase-native schema (phase 1: schema + security)
 -- Single business. The OWNER authenticates via Supabase Auth and reads/writes
@@ -242,9 +236,7 @@ CREATE POLICY "owner_reminder" ON "Reminder" FOR ALL TO authenticated
 -- RLS and enforces its own checks. This keeps sensitive columns
 -- (passwordHash, client PII) unreadable from the browser.
 
--- ============================================================
--- 20260711130000_functions.sql
--- ============================================================
+-- ==== 20260711130000_functions ====
 -- =============================================================================
 -- App-Barber — Supabase-native business logic (phases 2 & 3)
 -- All logic ported from the old Express services into Postgres:
@@ -651,9 +643,7 @@ TO anon, authenticated;
 
 GRANT EXECUTE ON FUNCTION public.claim_business(TEXT) TO authenticated;
 
--- ============================================================
--- 20260711140000_reminders.sql
--- ============================================================
+-- ==== 20260711140000_reminders ====
 -- =============================================================================
 -- App-Barber — Supabase-native reminders dispatch (phase 4)
 -- Replaces the old node-cron dispatcher. pg_cron runs dispatch_due_reminders()
@@ -732,9 +722,7 @@ $$;
 -- dashboard if this migration can't create them.)
 SELECT cron.schedule('dispatch-reminders', '*/5 * * * *', $$SELECT public.dispatch_due_reminders();$$);
 
--- ============================================================
--- 20260711150000_owner_book.sql
--- ============================================================
+-- ==== 20260711150000_owner_book ====
 -- Owner-side booking: authenticated owner books for an existing client,
 -- reusing the same validation + reminder scheduling as public/client booking.
 CREATE OR REPLACE FUNCTION public.owner_book(
@@ -752,9 +740,7 @@ END; $$;
 
 GRANT EXECUTE ON FUNCTION public.owner_book(TEXT,TEXT,TEXT,TIMESTAMPTZ,TEXT) TO authenticated;
 
--- ============================================================
--- 20260711160000_grants.sql
--- ============================================================
+-- ==== 20260711160000_grants ====
 -- Table privileges for the API roles. RLS still gates WHICH rows each role
 -- sees; these GRANTs are the base privilege the policies build on.
 --   * authenticated (the owner): direct CRUD, scoped by the owner_* policies.
@@ -767,9 +753,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authentic
 -- Keep future tables working too.
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticated, service_role;
 
--- ============================================================
--- 20260711170000_booking_hardening.sql
--- ============================================================
+-- ==== 20260711170000_booking_hardening ====
 -- =============================================================================
 -- Security/correctness hardening (from the audit)
 -- 1) Race condition: booking used check-then-insert with no lock, so two
@@ -844,9 +828,7 @@ DECLARE v_barber TEXT; v_client TEXT; appt "Appointment"%ROWTYPE; BEGIN
   RETURN to_jsonb(appt);
 END; $$;
 
--- ============================================================
--- 20260720000000_unified_auth.sql
--- ============================================================
+-- ==== 20260720000000_unified_auth ====
 -- =============================================================================
 -- Unified auth: everyone logs in with email + password via Supabase Auth, and
 -- a role (admin | client) is derived from the DB. Removes the phone+token
@@ -987,9 +969,57 @@ GRANT EXECUTE ON FUNCTION
   public.client_delete_account()
 TO authenticated;
 
--- ============================================================
--- DATOS DE EJEMPLO (seed)
--- ============================================================
+-- ==== 20260721000000_invites_magic_link ====
+-- =============================================================================
+-- Invitaciones y enlace mágico (todo con el email nativo de Supabase Auth).
+-- Cuando un cliente acepta la invitación o entra con un enlace mágico, Supabase
+-- crea su usuario de Auth. Este trigger vincula ese usuario con la ficha de
+-- Client que ya existía (creada por el dueño) emparejando por email — así el
+-- cliente ve directamente su historial de citas.
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION public.handle_new_auth_user()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  UPDATE "Client"
+     SET "authUserId" = NEW."id"
+   WHERE "authUserId" IS NULL
+     AND lower("email") = lower(NEW."email");
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_auth_user();
+
+CREATE OR REPLACE FUNCTION public.client_complete_profile(p_slug TEXT, p_name TEXT, p_phone TEXT)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_barber TEXT; v_email TEXT; existing "Client"%ROWTYPE; v_client TEXT; BEGIN
+  IF auth.uid() IS NULL THEN RAISE EXCEPTION 'UNAUTHORIZED'; END IF;
+  SELECT "id" INTO v_barber FROM "Barber" WHERE "slug" = p_slug;
+  IF v_barber IS NULL THEN RAISE EXCEPTION 'BUSINESS_NOT_FOUND'; END IF;
+  SELECT email INTO v_email FROM auth.users WHERE id = auth.uid();
+
+  SELECT * INTO existing FROM "Client" WHERE "authUserId" = auth.uid();
+  IF FOUND THEN RETURN public._client_json(existing."id"); END IF;
+
+  SELECT * INTO existing FROM "Client" WHERE "barberId" = v_barber AND "phone" = p_phone;
+  IF FOUND THEN
+    IF existing."authUserId" IS NOT NULL THEN RAISE EXCEPTION 'PHONE_TAKEN'; END IF;
+    UPDATE "Client" SET "authUserId" = auth.uid(), "name" = p_name, "email" = COALESCE("email", v_email)
+      WHERE "id" = existing."id" RETURNING "id" INTO v_client;
+  ELSE
+    INSERT INTO "Client"("barberId","name","phone","email","authUserId")
+    VALUES (v_barber, p_name, p_phone, v_email, auth.uid()) RETURNING "id" INTO v_client;
+  END IF;
+  RETURN public._client_json(v_client);
+END; $$;
+
+GRANT EXECUTE ON FUNCTION public.client_complete_profile(TEXT,TEXT,TEXT) TO authenticated;
+
+-- ==== seed ====
 -- Demo data for local dev / first production seed.
 -- The OWNER logs in via Supabase Auth; link their auth user to this Barber row
 -- afterwards by calling claim_business('oficina-del-barbero') once, or set

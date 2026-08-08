@@ -23,6 +23,7 @@ export function LoginScreen({ navigation }: Props) {
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleLogin() {
@@ -69,10 +70,14 @@ export function LoginScreen({ navigation }: Props) {
             style={styles.input}
             value={password}
             onChangeText={setPassword}
-            secureTextEntry
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
             placeholder="••••••••"
             placeholderTextColor={colors.faint}
           />
+          <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={8}>
+            <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={18} color={colors.faint} />
+          </Pressable>
         </View>
 
         <Pressable

@@ -20,8 +20,23 @@ function envOr(value: string | undefined, fallback: string): string {
   return trimmed ? trimmed : fallback;
 }
 
+// Un .env mal escrito (clave cortada, con saltos de línea, o con caracteres
+// raros de un copiar/pegar) daba "Invalid API key" en cada petición, pisando
+// una clave por defecto que sí era válida. Si lo que viene del entorno no tiene
+// forma de JWT (tres partes separadas por puntos, solo caracteres de base64url),
+// se ignora y se avisa, en vez de romper la app entera en silencio.
+function envKeyOr(value: string | undefined, fallback: string): string {
+  const key = value?.trim();
+  if (!key) return fallback;
+  if (/^[\w-]+\.[\w-]+\.[\w-]+$/.test(key)) return key;
+  console.warn(
+    "EXPO_PUBLIC_SUPABASE_ANON_KEY no parece un JWT válido; se ignora y se usa la clave por defecto. Revisa (o borra) tu .env.",
+  );
+  return fallback;
+}
+
 export const SUPABASE_URL = envOr(process.env.EXPO_PUBLIC_SUPABASE_URL, DEFAULT_SUPABASE_URL);
-export const SUPABASE_ANON_KEY = envOr(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY, DEFAULT_SUPABASE_ANON_KEY);
+export const SUPABASE_ANON_KEY = envKeyOr(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY, DEFAULT_SUPABASE_ANON_KEY);
 
 // Single business this app books against.
 export const BUSINESS_SLUG = envOr(process.env.EXPO_PUBLIC_BUSINESS_SLUG, "oficina-del-barbero");

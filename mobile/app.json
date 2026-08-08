@@ -3,6 +3,7 @@
     "name": "Oficina del Barbero",
     "slug": "oficina-del-barbero",
     "version": "1.0.0",
+    "newArchEnabled": false,
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",

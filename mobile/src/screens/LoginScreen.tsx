@@ -29,7 +29,7 @@ export function LoginScreen({ navigation }: Props) {
   async function handleLogin() {
     setSubmitting(true);
     try {
-      await login(email.trim(), password);
+      await login(email.trim(), password.trim());
     } catch (err) {
       Alert.alert("Error", err instanceof ApiError ? err.message : "No se pudo iniciar sesión");
     } finally {

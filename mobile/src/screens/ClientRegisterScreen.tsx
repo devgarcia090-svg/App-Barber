@@ -13,13 +13,14 @@ export function ClientRegisterScreen() {
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit() {
-    if (!name.trim() || !phone.trim() || !email.trim() || password.length < 8) {
+    const trimmedPassword = password.trim();
+    if (!name.trim() || !phone.trim() || !email.trim() || trimmedPassword.length < 8) {
       Alert.alert("Revisa los datos", "Indica tu nombre, teléfono, email y una contraseña de al menos 8 caracteres.");
       return;
     }
     setSubmitting(true);
     try {
-      await registerClient({ name: name.trim(), phone: phone.trim(), email: email.trim(), password });
+      await registerClient({ name: name.trim(), phone: phone.trim(), email: email.trim(), password: trimmedPassword });
     } catch (err) {
       Alert.alert("Error", err instanceof ApiError ? err.message : "No se pudo crear la cuenta");
     } finally {

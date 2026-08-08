@@ -185,10 +185,24 @@ function wrap(res: { data: any; error: { message: string } | null }): any {
   return res.data;
 }
 
+// Solo decimos "contraseña incorrecta" cuando Supabase dice exactamente eso.
+// Cualquier otro fallo (configuración, red, servidor) se muestra tal cual, para
+// no mentir sobre la causa y poder diagnosticarlo.
+function loginErrorMessage(error: { message: string; code?: string } | null): string {
+  const msg = error?.message ?? "";
+  if (!error || error.code === "invalid_credentials" || /invalid login credentials/i.test(msg)) {
+    return "Email o contraseña incorrectos";
+  }
+  if (error.code === "email_not_confirmed" || /email not confirmed/i.test(msg)) {
+    return "Tienes que confirmar tu email antes de entrar. Revisa tu correo.";
+  }
+  return `No se pudo iniciar sesión: ${msg}`;
+}
+
 export const api = {
   async login(email: string, password: string) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error || !data.session) throw new ApiError(401, "Email o contraseña incorrectos");
+    if (error || !data.session) throw new ApiError(401, loginErrorMessage(error));
     const r = await role();
     if (r.role === "client") {
       await supabase.auth.signOut();

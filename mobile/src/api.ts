@@ -136,6 +136,21 @@ function translateBookingError(msg: string): string {
   return msg;
 }
 
+// Solo decimos "contraseña incorrecta" cuando Supabase dice exactamente eso.
+// Antes cualquier fallo (clave mal configurada, sin red, servidor caído) se
+// mostraba como credenciales incorrectas, lo que hacía imposible diagnosticar
+// nada: la app mentía sobre la causa real.
+function loginErrorMessage(error: { message: string; code?: string }): string {
+  const msg = error.message ?? "";
+  if (error.code === "invalid_credentials" || /invalid login credentials/i.test(msg)) {
+    return "Email o contraseña incorrectos";
+  }
+  if (error.code === "email_not_confirmed" || /email not confirmed/i.test(msg)) {
+    return "Tienes que confirmar tu email antes de entrar. Revisa tu correo.";
+  }
+  return `No se pudo iniciar sesión: ${msg}`;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function wrap(res: { data: any; error: { message: string } | null }): any {
   if (res.error) throw new ApiError(400, res.error.message);
@@ -170,7 +185,7 @@ export const api = {
   // Signs in and returns the resolved session; the app routes by session.role.
   async login(email: string, password: string): Promise<Session> {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw new ApiError(401, "Email o contraseña incorrectos");
+    if (error) throw new ApiError(401, loginErrorMessage(error));
     const session = await loadSession();
     if (!session) throw new ApiError(403, "Esta cuenta no está configurada. Contacta con la barbería.");
     return session;

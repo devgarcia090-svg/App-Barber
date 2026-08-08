@@ -11,6 +11,9 @@ export function DateStrip({ selected, onSelect }: { selected: string; onSelect: 
       horizontal
       showsHorizontalScrollIndicator={false}
       keyExtractor={(d) => d.dateStr}
+      // Sin esto, una lista horizontal dentro de una columna flex se estira a
+      // lo alto y deja un hueco enorme empujando el resto de la pantalla.
+      style={styles.strip}
       contentContainerStyle={styles.list}
       renderItem={({ item }) => {
         const isSelected = item.dateStr === selected;
@@ -26,6 +29,9 @@ export function DateStrip({ selected, onSelect }: { selected: string; onSelect: 
 }
 
 const styles = StyleSheet.create({
+  strip: {
+    flexGrow: 0,
+  },
   list: {
     gap: 8,
     paddingVertical: 4,

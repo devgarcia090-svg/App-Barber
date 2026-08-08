@@ -1,4 +1,5 @@
 import { ActivityIndicator, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DarkTheme, NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -50,10 +51,16 @@ const Tab = createBottomTabNavigator();
 const ClientTab = createBottomTabNavigator();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 
+// Las pantallas sin cabecera tienen que dejar hueco para la barra de estado
+// ellas mismas: el sistema dibuja la app a pantalla completa (edge-to-edge, ya
+// obligatorio en Android 15+), así que sin esto el contenido se solapa con el
+// reloj y la batería. Las pantallas CON cabecera no lo necesitan, porque la
+// cabecera de react-navigation ya aplica el margen superior por su cuenta.
 function AuthNavigator() {
+  const insets = useSafeAreaInsets();
   return (
     <AuthStack.Navigator screenOptions={{ headerShown: false }}>
-      <AuthStack.Screen name="Login" component={LoginScreen} />
+      <AuthStack.Screen name="Login" component={LoginScreen} options={{ contentStyle: { paddingTop: insets.top } }} />
       <AuthStack.Screen
         name="ClientRegister"
         component={ClientRegisterScreen}
@@ -70,10 +77,12 @@ const CLIENT_TAB_ICONS: Record<string, { active: React.ComponentProps<typeof Ion
 };
 
 function ClientNavigator() {
+  const insets = useSafeAreaInsets();
   return (
     <ClientTab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
+        sceneStyle: { paddingTop: insets.top },
         tabBarActiveTintColor: colors.gold,
         tabBarInactiveTintColor: colors.faint,
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
@@ -99,10 +108,12 @@ const TAB_ICONS: Record<string, { active: React.ComponentProps<typeof Ionicons>[
 };
 
 function MainTabs() {
+  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
+        sceneStyle: { paddingTop: insets.top },
         tabBarActiveTintColor: colors.gold,
         tabBarInactiveTintColor: colors.faint,
         tabBarStyle: {

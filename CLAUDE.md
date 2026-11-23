@@ -38,6 +38,13 @@ Responde siempre en español.
 `seo-audit`, `ai-seo`, `schema`. Junto con las de diseño ya existentes
 (`brand`, `design`, `banner-design`, `slides`, `ui-ux-pro-max`…).
 
+**Diseño gráfico web**: `impeccable` es la principal para diseñar, rediseñar,
+revisar (`critique`, `audit`) y pulir (`polish`, `bolder`, `quieter`…) webs y
+componentes; la primera vez en un proyecto, `/impeccable init`.
+`frontend-design` da la dirección visual de una página nueva, `motion-design`
+decide animaciones y transiciones, y `ui-ux-pro-max` sirve para consultar
+paletas, tipografías y estilos.
+
 **Utilidades** (anthropics/skills): `skill-creator` (crear skills propias),
 `doc-coauthoring`, `webapp-testing` (Playwright). Las skills de documentos
 (PDF, Word, Excel, PowerPoint) se activan como plugin en `.claude/settings.json`.
